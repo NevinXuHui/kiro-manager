@@ -323,7 +323,8 @@ class AutoRefreshService {
                       region: updatedAccount.credentials.region || 'us-east-1',
                       startUrl: updatedAccount.credentials.startUrl,
                       authMethod: updatedAccount.credentials.authMethod || 'IdC',
-                      provider: updatedAccount.credentials.provider || updatedAccount.idp
+                      provider: updatedAccount.credentials.provider || updatedAccount.idp,
+                      profileArn: updatedAccount.subscription.profileArn
                     })
                     
                     // 如果后端返回了新 token，再次更新账号
@@ -363,7 +364,8 @@ class AutoRefreshService {
                       region: updatedAccount.credentials.region || 'us-east-1',
                       startUrl: updatedAccount.credentials.startUrl,
                       authMethod: updatedAccount.credentials.authMethod || 'IdC',
-                      provider: updatedAccount.credentials.provider || updatedAccount.idp
+                      provider: updatedAccount.credentials.provider || updatedAccount.idp,
+                      profileArn: updatedAccount.subscription.profileArn
                     })
                     
                     // 如果后端返回了新 token，再次更新账号

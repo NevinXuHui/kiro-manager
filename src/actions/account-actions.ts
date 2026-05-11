@@ -48,8 +48,13 @@ async function getProfileArn(account: Account): Promise<string> {
   const savedProfileArn = subscription.profileArn || subscription.profile_arn
   if (isProfileArn(savedProfileArn)) return savedProfileArn
 
-  const latestProfileArn = await (window as any).__TAURI__.core.invoke('get_latest_kiro_profile_arn')
-  return isProfileArn(latestProfileArn) ? latestProfileArn : ''
+  const activeAccessToken = await (window as any).__TAURI__.core.invoke('get_active_account')
+  if (activeAccessToken && activeAccessToken === account.credentials.accessToken) {
+    const activeProfileArn = await (window as any).__TAURI__.core.invoke('get_latest_kiro_profile_arn')
+    return isProfileArn(activeProfileArn) ? activeProfileArn : ''
+  }
+
+  return ''
 }
 
 interface EnableOveragesOptions {
@@ -242,8 +247,9 @@ export async function enableOveragesForAccount(account: Account, options: Enable
 
   const profileArn = await getProfileArn(currentAccount)
   if (!profileArn) {
-    if (showToasts) window.UI?.toast.error('缺少 profileArn，请先刷新账号后再试')
-    throw new Error('缺少 profileArn')
+    const message = '缺少当前账号的 profileArn，无法开通 Overages。请先从本机 Kiro 登录后的 kiro-auth-token.json 导入该账号，或导入包含 profileArn 的数据。'
+    if (showToasts) window.UI?.toast.error(message)
+    throw new Error(message)
   }
 
   if (!currentAccount.credentials.accessToken) {
@@ -735,7 +741,8 @@ export async function switchToAccount(account: Account): Promise<void> {
       region: account.credentials.region || 'us-east-1',
       startUrl: account.credentials.startUrl,
       authMethod: account.credentials.authMethod || 'IdC',
-      provider: account.credentials.provider || account.idp
+      provider: account.credentials.provider || account.idp,
+      profileArn: account.subscription.profileArn
     })
 
     if (result.success) {

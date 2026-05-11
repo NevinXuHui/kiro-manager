@@ -164,6 +164,22 @@ pub struct OverageResponse {
 
 #[tauri::command]
 pub async fn get_latest_kiro_profile_arn() -> Result<Option<String>, String> {
+    if let Ok(home_dir) = std::env::var("USERPROFILE") {
+        let token_path = PathBuf::from(home_dir)
+            .join(".aws")
+            .join("sso")
+            .join("cache")
+            .join("kiro-auth-token.json");
+
+        if let Some(profile_arn) = read_profile_arn_from_token_json(&token_path) {
+            println!(
+                "[ProfileArn] 已从 kiro-auth-token.json 读取: {}",
+                mask_profile_arn(&profile_arn)
+            );
+            return Ok(Some(profile_arn));
+        }
+    }
+
     let appdata = std::env::var("APPDATA").map_err(|e| format!("读取 APPDATA 失败: {}", e))?;
     let kiro_dir = PathBuf::from(appdata).join("Kiro");
     let profile_path = kiro_dir
@@ -188,6 +204,17 @@ pub async fn get_latest_kiro_profile_arn() -> Result<Option<String>, String> {
         println!("[ProfileArn] 未在 Kiro 日志中找到 profileArn");
     }
     Ok(profile_arn)
+}
+
+fn read_profile_arn_from_token_json(path: &Path) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    let value = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+    let arn = value.get("profileArn").and_then(|v| v.as_str())?;
+    if arn.starts_with("arn:aws:codewhisperer:") {
+        Some(arn.to_string())
+    } else {
+        None
+    }
 }
 
 fn read_profile_arn_from_profile_json(path: &Path) -> Option<String> {

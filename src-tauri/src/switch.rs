@@ -61,6 +61,7 @@ pub async fn switch_account(
     start_url: Option<String>,
     auth_method: Option<String>,
     provider: Option<String>,
+    profile_arn: Option<String>,
 ) -> Result<SwitchAccountResponse, String> {
     println!("[切换账号] 开始切换账号");
     
@@ -97,7 +98,7 @@ pub async fn switch_account(
     let token_path = sso_cache.join("kiro-auth-token.json");
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     
-    let token_data = serde_json::json!({
+    let mut token_data = serde_json::json!({
         "accessToken": access_token,
         "refreshToken": refresh_token,
         "expiresAt": expires_at.to_rfc3339(),
@@ -106,6 +107,10 @@ pub async fn switch_account(
         "provider": provider,
         "region": region
     });
+
+    if let Some(profile_arn) = profile_arn.filter(|arn| arn.starts_with("arn:aws:codewhisperer:")) {
+        token_data["profileArn"] = serde_json::json!(profile_arn);
+    }
     
     let token_json = serde_json::to_string_pretty(&token_data)
         .map_err(|e| format!("序列化 token 数据失败: {}", e))?;

@@ -98,6 +98,7 @@ pub struct LocalActiveAccountData {
     pub client_id: String,
     pub client_secret: String,
     pub region: String,
+    pub profile_arn: Option<String>,
 }
 
 // 读取本地活跃账号
@@ -142,6 +143,12 @@ pub async fn get_local_active_account() -> Result<LocalActiveAccountResponse, St
         .and_then(|v| v.as_str())
         .ok_or_else(|| "token 文件中缺少 refreshToken".to_string())?
         .to_string();
+
+    let profile_arn = token_data
+        .get("profileArn")
+        .and_then(|v| v.as_str())
+        .filter(|arn| arn.starts_with("arn:aws:codewhisperer:"))
+        .map(|arn| arn.to_string());
     
     // 从 ~/.aws/sso/cache/ 目录查找 client credentials
     let cache_dir = PathBuf::from(&home_dir)
@@ -204,6 +211,7 @@ pub async fn get_local_active_account() -> Result<LocalActiveAccountResponse, St
             client_id,
             client_secret,
             region,
+            profile_arn,
         }),
         error: None,
     })

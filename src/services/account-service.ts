@@ -24,7 +24,7 @@ export async function autoImportCurrentAccount(
       return
     }
 
-    const { refresh_token, client_id, client_secret, region } = localResult.data
+    const { refresh_token, client_id, client_secret, region, profile_arn } = localResult.data
 
     // 检查是否已存在相同的账号
     const accounts = accountStore.getAccounts()
@@ -41,6 +41,15 @@ export async function autoImportCurrentAccount(
       const expiresAt = existingAccount.credentials.expiresAt || 0
       const needsRefresh = expiresAt - now < 5 * 60 * 1000
       
+      if (profile_arn && !existingAccount.subscription.profileArn) {
+        accountStore.updateAccount(existingAccount.id, {
+          subscription: {
+            ...existingAccount.subscription,
+            profileArn: profile_arn
+          }
+        })
+      }
+
       if (needsRefresh) {
         console.log('[自动导入] Token 即将过期，正在刷新')
         await refreshAccount(existingAccount)
@@ -57,7 +66,8 @@ export async function autoImportCurrentAccount(
             region: updatedAccount.credentials.region || 'us-east-1',
             startUrl: updatedAccount.credentials.startUrl,
             authMethod: updatedAccount.credentials.authMethod || 'IdC',
-            provider: updatedAccount.credentials.provider || updatedAccount.idp
+            provider: updatedAccount.credentials.provider || updatedAccount.idp,
+            profileArn: updatedAccount.subscription.profileArn
           })
         }
         
@@ -108,7 +118,8 @@ export async function autoImportCurrentAccount(
           overageCapability: result.data.overage_capability,
           overageStatus: result.data.overage_status,
           managementTarget: result.data.management_target,
-          daysRemaining: result.data.days_remaining
+          daysRemaining: result.data.days_remaining,
+          profileArn: profile_arn
         },
         usage: {
           current: result.data.usage.current,
@@ -143,7 +154,8 @@ export async function autoImportCurrentAccount(
           region: newAccount.credentials.region || 'us-east-1',
           startUrl: newAccount.credentials.startUrl,
           authMethod: newAccount.credentials.authMethod || 'IdC',
-          provider: newAccount.credentials.provider || newAccount.idp
+          provider: newAccount.credentials.provider || newAccount.idp,
+          profileArn: newAccount.subscription.profileArn
         })
       }
       
@@ -202,7 +214,8 @@ export async function handleAccountAction(
                 region: updatedAccount.credentials.region || 'us-east-1',
                 startUrl: updatedAccount.credentials.startUrl,
                 authMethod: updatedAccount.credentials.authMethod || 'IdC',
-                provider: updatedAccount.credentials.provider || updatedAccount.idp
+                provider: updatedAccount.credentials.provider || updatedAccount.idp,
+                profileArn: updatedAccount.subscription.profileArn
               })
               
               // 如果后端返回了新 token，再次更新账号
