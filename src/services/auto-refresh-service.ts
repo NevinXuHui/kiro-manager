@@ -296,7 +296,7 @@ class AutoRefreshService {
           
           try {
             if (this.config.syncInfo) {
-              await refreshAccount(account)
+              await refreshAccount(account, true)
               
               const updatedAccount = accountStore.getAccounts().find(a => a.id === account.id)
               if (updatedAccount && beforeData) {

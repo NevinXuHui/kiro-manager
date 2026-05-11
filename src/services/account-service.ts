@@ -3,7 +3,13 @@ import { accountStore } from '../store'
 import { showAccountDetailDialog } from '../dialogs/detail-dialog'
 import { showEditAccountDialog } from '../dialogs/edit-account-dialog'
 import { showModelsDialog } from '../dialogs/models-dialog'
-import { refreshAccount, deleteAccount, switchToAccount } from '../actions/account-actions'
+import { refreshAccount, deleteAccount, switchToAccount, enableOveragesForAccount } from '../actions/account-actions'
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return JSON.stringify(error) || '未知错误'
+}
 
 export async function autoImportCurrentAccount(
   renderCurrentAccountFn: (account?: Account | null) => void
@@ -100,6 +106,7 @@ export async function autoImportCurrentAccount(
           rawType: result.data.raw_type,
           upgradeCapability: result.data.upgrade_capability,
           overageCapability: result.data.overage_capability,
+          overageStatus: result.data.overage_status,
           managementTarget: result.data.management_target,
           daysRemaining: result.data.days_remaining
         },
@@ -171,6 +178,9 @@ export async function handleAccountAction(
       case 'models':
         showModelsDialog(account)
         break
+      case 'enable-overages':
+        await enableOveragesForAccount(account)
+        break
       case 'switch':
         await switchToAccount(account)
         break
@@ -230,7 +240,9 @@ export async function handleAccountAction(
   } catch (error) {
     // 只在刷新操作时显示错误提示
     if (action === 'refresh') {
-      window.UI?.toast.error('刷新失败: ' + (error as Error).message)
+      window.UI?.toast.error('刷新失败: ' + formatErrorMessage(error))
+    } else if (action === 'enable-overages') {
+      window.UI?.toast.error('开通 Overages 失败: ' + formatErrorMessage(error))
     }
   }
 }

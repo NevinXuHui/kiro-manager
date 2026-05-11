@@ -75,10 +75,12 @@ export function updateSelectionUI(container: HTMLElement, selectedIds: Set<strin
   // 更新批量操作按钮的禁用状态
   const batchCheckBtn = container.querySelector('#batch-check-btn') as HTMLButtonElement
   const batchRefreshBtn = container.querySelector('#batch-refresh-btn') as HTMLButtonElement
+  const batchOveragesBtn = container.querySelector('#batch-overages-btn') as HTMLButtonElement
   const batchDeleteBtn = container.querySelector('#batch-delete-btn') as HTMLButtonElement
 
   const isDisabled = selectedIds.size === 0
   if (batchCheckBtn) batchCheckBtn.disabled = isDisabled
   if (batchRefreshBtn) batchRefreshBtn.disabled = isDisabled
+  if (batchOveragesBtn) batchOveragesBtn.disabled = isDisabled
   if (batchDeleteBtn) batchDeleteBtn.disabled = isDisabled
 }

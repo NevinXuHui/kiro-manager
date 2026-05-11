@@ -1,6 +1,7 @@
 import { accountStore } from '../store'
 import { showAddAccountDialog } from '../dialogs/add-account-dialog'
-import { handleBatchCheck, handleBatchRefresh, handleBatchDelete } from '../actions/account-actions'
+import { showFormatImportDialog } from '../dialogs/format-import-dialog'
+import { handleBatchCheck, handleBatchRefresh, handleBatchDelete, handleBatchEnableOverages } from '../actions/account-actions'
 
 export function attachAccountsEvents(
   container: HTMLElement,
@@ -124,6 +125,11 @@ export function attachAccountsEvents(
     btn.addEventListener('click', () => showAddAccountDialog())
   })
 
+  const formatImportBtn = container.querySelector('#format-import-btn')
+  if (formatImportBtn) {
+    formatImportBtn.addEventListener('click', () => showFormatImportDialog())
+  }
+
   const exportBtn = container.querySelector('#export-btn')
   if (exportBtn) {
     exportBtn.addEventListener('click', () => onExport())
@@ -157,6 +163,11 @@ export function attachAccountsEvents(
   const batchRefreshBtn = container.querySelector('#batch-refresh-btn')
   if (batchRefreshBtn) {
     batchRefreshBtn.addEventListener('click', () => handleBatchRefresh(selectedIds))
+  }
+
+  const batchOveragesBtn = container.querySelector('#batch-overages-btn')
+  if (batchOveragesBtn) {
+    batchOveragesBtn.addEventListener('click', () => handleBatchEnableOverages(selectedIds))
   }
 
   const batchDeleteBtn = container.querySelector('#batch-delete-btn')

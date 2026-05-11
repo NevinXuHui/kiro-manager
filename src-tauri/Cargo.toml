@@ -1,6 +1,6 @@
 [package]
 name = "kiro-manager"
-version = "2.0.3"
+version = "2.0.4"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -35,4 +35,3 @@ opener = "0.7"
 warp = "0.3"
 futures = "0.3"
 bytes = "1.0"
-

@@ -1,35 +1,35 @@
 /* iOS glass visual layer */
 :root {
-  --primary: #6d5dfc;
-  --primary-light: rgba(109, 93, 252, 0.12);
-  --bg-main: #eef4fb;
-  --bg-sidebar: rgba(255, 255, 255, 0.64);
-  --text-main: #172033;
-  --text-muted: #66758f;
-  --border-color: rgba(124, 139, 168, 0.24);
-  --slate-50: rgba(255, 255, 255, 0.48);
-  --slate-100: rgba(255, 255, 255, 0.62);
-  --slate-200: rgba(126, 141, 170, 0.2);
-  --glass-bg: rgba(255, 255, 255, 0.54);
-  --glass-bg-strong: rgba(255, 255, 255, 0.72);
-  --glass-stroke: rgba(255, 255, 255, 0.78);
-  --glass-shadow: 0 20px 60px rgba(75, 91, 125, 0.18);
-  --glass-shadow-soft: 0 10px 34px rgba(75, 91, 125, 0.12);
-  --glass-blur: saturate(1.55) blur(22px);
-  --accent-blue: #1f8fff;
-  --accent-cyan: #28c7d8;
-  --accent-rose: #ff5e93;
+  --primary: #625ef6;
+  --primary-light: rgba(98, 94, 246, 0.1);
+  --bg-main: #f0f3fb;
+  --bg-sidebar: rgba(255, 255, 255, 0.68);
+  --text-main: #20283a;
+  --text-muted: #69758a;
+  --border-color: rgba(116, 128, 154, 0.2);
+  --slate-50: rgba(255, 255, 255, 0.5);
+  --slate-100: rgba(255, 255, 255, 0.64);
+  --slate-200: rgba(116, 128, 154, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.76);
+  --glass-stroke: rgba(255, 255, 255, 0.72);
+  --glass-shadow: 0 18px 48px rgba(57, 66, 92, 0.13);
+  --glass-shadow-soft: 0 8px 24px rgba(57, 66, 92, 0.09);
+  --glass-blur: saturate(1.32) blur(18px);
+  --accent-blue: #2f7df4;
+  --accent-cyan: #5b8df4;
+  --accent-rose: #8d8fb8;
   --ease-glass: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 html.dark {
-  --primary: #8b7cff;
-  --primary-light: rgba(139, 124, 255, 0.18);
-  --bg-main: #07111f;
-  --bg-sidebar: rgba(18, 27, 43, 0.66);
-  --text-main: #f3f7ff;
-  --text-muted: #9ca9bd;
-  --border-color: rgba(178, 194, 224, 0.16);
+  --primary: #8a85ff;
+  --primary-light: rgba(138, 133, 255, 0.16);
+  --bg-main: #0b1020;
+  --bg-sidebar: rgba(18, 25, 42, 0.68);
+  --text-main: #eef3ff;
+  --text-muted: #9aa7bd;
+  --border-color: rgba(178, 190, 220, 0.15);
   --slate-50: rgba(255, 255, 255, 0.07);
   --slate-100: rgba(255, 255, 255, 0.1);
   --slate-200: rgba(215, 226, 244, 0.16);
@@ -38,22 +38,22 @@ html.dark {
   --slate-500: #9ca9bd;
   --slate-700: #c8d2e2;
   --slate-900: #f3f7ff;
-  --glass-bg: rgba(19, 29, 47, 0.58);
-  --glass-bg-strong: rgba(25, 37, 60, 0.78);
-  --glass-stroke: rgba(230, 238, 255, 0.16);
-  --glass-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  --glass-shadow-soft: 0 12px 36px rgba(0, 0, 0, 0.26);
+  --glass-bg: rgba(20, 29, 48, 0.6);
+  --glass-bg-strong: rgba(27, 38, 62, 0.78);
+  --glass-stroke: rgba(226, 240, 248, 0.14);
+  --glass-shadow: 0 22px 58px rgba(0, 0, 0, 0.34);
+  --glass-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.23);
 }
 
 body {
   background:
-    linear-gradient(135deg, rgba(236, 247, 255, 0.96), rgba(244, 239, 255, 0.9) 42%, rgba(234, 250, 248, 0.92)),
+    linear-gradient(135deg, rgba(240, 244, 255, 0.98), rgba(248, 250, 255, 0.94) 48%, rgba(238, 245, 255, 0.96)),
     var(--bg-main);
 }
 
 html.dark body {
   background:
-    linear-gradient(135deg, rgba(6, 16, 30, 0.98), rgba(18, 23, 49, 0.96) 48%, rgba(8, 31, 43, 0.94)),
+    linear-gradient(135deg, rgba(7, 12, 26, 0.98), rgba(15, 20, 42, 0.96) 50%, rgba(10, 24, 42, 0.94)),
     var(--bg-main);
 }
 
@@ -64,16 +64,16 @@ body::before {
   z-index: -2;
   pointer-events: none;
   background:
-    linear-gradient(115deg, rgba(31, 143, 255, 0.16), transparent 34%),
-    linear-gradient(245deg, rgba(255, 94, 147, 0.13), transparent 38%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 88px);
+    linear-gradient(115deg, rgba(47, 125, 244, 0.1), transparent 38%),
+    linear-gradient(245deg, rgba(98, 94, 246, 0.07), transparent 44%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 104px);
 }
 
 html.dark body::before {
   background:
-    linear-gradient(115deg, rgba(31, 143, 255, 0.14), transparent 34%),
-    linear-gradient(245deg, rgba(139, 124, 255, 0.14), transparent 38%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 88px);
+    linear-gradient(115deg, rgba(91, 141, 244, 0.1), transparent 38%),
+    linear-gradient(245deg, rgba(138, 133, 255, 0.08), transparent 44%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 104px);
 }
 
 #app {
@@ -108,8 +108,8 @@ html.dark body::before {
 
 .titlebar {
   height: 36px;
-  border-bottom-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.5);
+  border-bottom-color: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.46);
 }
 
 html.dark .titlebar {
@@ -146,7 +146,7 @@ html.dark .sidebar-header {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  filter: drop-shadow(0 8px 14px rgba(109, 93, 252, 0.3));
+  filter: drop-shadow(0 8px 14px rgba(98, 94, 246, 0.2));
 }
 
 .sidebar-title {
@@ -174,9 +174,9 @@ html.dark .sidebar-header {
 
 .sidebar-link:hover {
   border-color: var(--glass-stroke);
-  background: rgba(255, 255, 255, 0.58);
-  transform: translateX(3px);
-  box-shadow: 0 10px 24px rgba(75, 91, 125, 0.12);
+  background: rgba(255, 255, 255, 0.54);
+  transform: translateX(2px);
+  box-shadow: 0 8px 20px rgba(44, 61, 82, 0.1);
 }
 
 html.dark .sidebar-link:hover {
@@ -185,9 +185,9 @@ html.dark .sidebar-link:hover {
 
 .sidebar-link.active {
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.28);
   background: linear-gradient(135deg, var(--primary), var(--accent-blue));
-  box-shadow: 0 14px 30px rgba(109, 93, 252, 0.32);
+  box-shadow: 0 12px 26px rgba(98, 94, 246, 0.22);
 }
 
 .sidebar-link.active::after {
@@ -195,7 +195,7 @@ html.dark .sidebar-link:hover {
   position: absolute;
   inset: 1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 44%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 48%);
   pointer-events: none;
 }
 
@@ -216,9 +216,9 @@ html.dark .sidebar-footer {
 
 .main-content {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.48);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.32);
   -webkit-backdrop-filter: saturate(1.2) blur(10px);
   backdrop-filter: saturate(1.2) blur(10px);
   box-shadow: var(--glass-shadow);
@@ -241,7 +241,50 @@ html.dark .main-content {
 
 .content-title {
   font-size: 24px;
+  font-weight: 700;
   letter-spacing: 0;
+}
+
+.sidebar-title,
+.content-title,
+.email,
+.account-email,
+.list-item-email,
+.current-account-email,
+.detail-email {
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sidebar-title {
+  font-weight: 700;
+}
+
+.sidebar-link {
+  font-weight: 560;
+}
+
+.email,
+.account-email,
+.list-item-email {
+  font-weight: 650;
+  color: var(--text-main);
+}
+
+.usage-label,
+.status-dot,
+.account-status,
+.footer-info-item,
+.list-info-item,
+.list-item-nickname {
+  color: var(--text-muted);
+}
+
+.usage-percent,
+.list-usage-percent,
+.selection-count {
+  font-weight: 620;
 }
 
 .toolbar-container,
@@ -286,9 +329,9 @@ html.dark .settings-select {
 .ui-input:focus,
 .filter-input:focus,
 .settings-select:focus {
-  border-color: rgba(109, 93, 252, 0.6);
+  border-color: rgba(98, 94, 246, 0.46);
   background: var(--glass-bg-strong);
-  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.14), 0 12px 28px rgba(75, 91, 125, 0.12);
+  box-shadow: 0 0 0 4px rgba(98, 94, 246, 0.1), 0 10px 24px rgba(57, 66, 92, 0.1);
   transform: translateY(-1px);
 }
 
@@ -344,7 +387,7 @@ html.dark .settings-select {
 .ui-btn {
   min-height: 34px;
   border-radius: 12px;
-  box-shadow: 0 8px 22px rgba(75, 91, 125, 0.08);
+  box-shadow: 0 6px 18px rgba(44, 61, 82, 0.07);
 }
 
 .ui-btn-primary,
@@ -354,7 +397,7 @@ html.dark .settings-select {
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, var(--primary), var(--accent-blue));
-  box-shadow: 0 12px 30px rgba(109, 93, 252, 0.3);
+  box-shadow: 0 10px 24px rgba(98, 94, 246, 0.22);
 }
 
 .ui-btn-primary::before,
@@ -387,6 +430,8 @@ html.dark .settings-select {
 
 .btn-icon,
 .ui-btn-icon {
+  width: 30px;
+  height: 30px;
   border-radius: 9px;
 }
 
@@ -417,17 +462,17 @@ html.dark .settings-select {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.36), transparent 45%);
-  opacity: 0.75;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 48%);
+  opacity: 0.5;
   pointer-events: none;
 }
 
 .account-card:hover,
 .account-list-item:hover {
-  border-color: rgba(109, 93, 252, 0.42);
+  border-color: rgba(98, 94, 246, 0.3);
   background: var(--glass-bg-strong);
-  box-shadow: 0 22px 48px rgba(75, 91, 125, 0.2);
-  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 16px 34px rgba(57, 66, 92, 0.14);
+  transform: translateY(-2px) scale(1.005);
 }
 
 html.dark .account-card:hover,
@@ -530,7 +575,7 @@ html.dark .account-status-indicator {
 .custom-checkbox.checked,
 .account-checkbox.checked {
   background: linear-gradient(135deg, var(--primary), var(--accent-blue));
-  box-shadow: 0 8px 18px rgba(109, 93, 252, 0.25);
+  box-shadow: 0 7px 16px rgba(98, 94, 246, 0.2);
 }
 
 .settings-page {
@@ -544,7 +589,8 @@ html.dark .account-status-indicator {
 .settings-section-title {
   padding-left: 4px;
   color: var(--text-muted);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
+  font-weight: 650;
 }
 
 .settings-item,

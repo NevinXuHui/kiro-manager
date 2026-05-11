@@ -1,6 +1,8 @@
 // 账号验证模块
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -38,6 +40,11 @@ pub struct AccountData {
     pub usage: UsageData,
     pub days_remaining: Option<u32>,
     pub expires_at: Option<u64>,
+    pub raw_type: Option<String>,
+    pub management_target: Option<String>,
+    pub upgrade_capability: Option<String>,
+    pub overage_capability: Option<String>,
+    pub overage_status: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,6 +53,12 @@ pub struct UsageData {
     pub limit: f64,
     #[serde(rename = "nextResetDate")]
     pub next_reset_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverageConfiguration {
+    overage_status: Option<String>,
 }
 
 // AWS OIDC Token 响应
@@ -124,6 +137,7 @@ where
 struct UsageLimitsResponse {
     usage_breakdown_list: Option<Vec<UsageBreakdown>>,
     subscription_info: Option<SubscriptionInfo>,
+    overage_configuration: Option<OverageConfiguration>,
     user_info: Option<UserInfo>,
     #[serde(deserialize_with = "deserialize_timestamp_or_string")]
     next_date_reset: Option<String>,
@@ -135,6 +149,118 @@ struct SubscriptionInfo {
     #[serde(alias = "type")]
     subscription_type: Option<String>,
     subscription_title: Option<String>,
+    raw_type: Option<String>,
+    #[serde(alias = "subscriptionManagementTarget")]
+    management_target: Option<String>,
+    upgrade_capability: Option<String>,
+    overage_capability: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OverageResponse {
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_latest_kiro_profile_arn() -> Result<Option<String>, String> {
+    let appdata = std::env::var("APPDATA").map_err(|e| format!("读取 APPDATA 失败: {}", e))?;
+    let kiro_dir = PathBuf::from(appdata).join("Kiro");
+    let profile_path = kiro_dir
+        .join("User")
+        .join("globalStorage")
+        .join("kiro.kiroagent")
+        .join("profile.json");
+
+    if let Some(profile_arn) = read_profile_arn_from_profile_json(&profile_path) {
+        println!(
+            "[ProfileArn] 已从 Kiro profile.json 读取: {}",
+            mask_profile_arn(&profile_arn)
+        );
+        return Ok(Some(profile_arn));
+    }
+
+    let logs_dir = kiro_dir.join("logs");
+    let profile_arn = find_latest_profile_arn(&logs_dir);
+    if let Some(ref arn) = profile_arn {
+        println!("[ProfileArn] 已从 Kiro 日志读取: {}", mask_profile_arn(arn));
+    } else {
+        println!("[ProfileArn] 未在 Kiro 日志中找到 profileArn");
+    }
+    Ok(profile_arn)
+}
+
+fn read_profile_arn_from_profile_json(path: &Path) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    let value = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+    let arn = value.get("arn").and_then(|v| v.as_str())?;
+    if arn.starts_with("arn:aws:codewhisperer:") {
+        Some(arn.to_string())
+    } else {
+        None
+    }
+}
+
+fn find_latest_profile_arn(logs_dir: &Path) -> Option<String> {
+    let mut log_files = Vec::new();
+    collect_q_client_logs(logs_dir, &mut log_files);
+    log_files.sort_by_key(|path| {
+        fs::metadata(path)
+            .and_then(|m| m.modified())
+            .ok()
+    });
+    log_files.reverse();
+
+    for path in log_files.into_iter().take(24) {
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Some(profile_arn) = extract_profile_arn(&content) {
+                return Some(profile_arn);
+            }
+        }
+    }
+
+    None
+}
+
+fn collect_q_client_logs(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_q_client_logs(&path, out);
+        } else if path.file_name().and_then(|name| name.to_str()) == Some("q-client.log") {
+            out.push(path);
+        }
+    }
+}
+
+fn extract_profile_arn(content: &str) -> Option<String> {
+    let marker = "\"profileArn\":\"";
+    content
+        .match_indices(marker)
+        .filter_map(|(start, _)| {
+            let value_start = start + marker.len();
+            let rest = &content[value_start..];
+            let value_end = rest.find('"')?;
+            let value = &rest[..value_end];
+            if value.starts_with("arn:aws:codewhisperer:") {
+                Some(value.to_string())
+            } else {
+                None
+            }
+        })
+        .last()
+}
+
+fn mask_profile_arn(profile_arn: &str) -> String {
+    let Some((prefix, suffix)) = profile_arn.rsplit_once('/') else {
+        return profile_arn.to_string();
+    };
+    let visible = suffix.chars().take(4).collect::<String>();
+    format!("{}/{}...", prefix, visible)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -142,6 +268,50 @@ struct SubscriptionInfo {
 struct UserInfo {
     email: Option<String>,
     user_id: Option<String>,
+}
+
+async fn refresh_desktop_auth_token(refresh_token: &str) -> Result<OidcTokenResponse, String> {
+    let url = "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken";
+    let payload = json!({
+        "refreshToken": refresh_token
+    });
+
+    println!("[验证] 使用 Kiro Desktop Auth refreshToken 接口");
+
+    let response = http_client()
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Kiro Desktop Auth 请求失败: {}", e))?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    println!("[验证] Kiro Desktop Auth 响应状态: {}", status);
+
+    if !status.is_success() {
+        let message = serde_json::from_str::<serde_json::Value>(&response_text)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("message")
+                    .and_then(|m| m.as_str())
+                    .or_else(|| value.get("error").and_then(|e| e.as_str()))
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or(response_text);
+
+        return Err(if message.is_empty() {
+            format!("Kiro Desktop Auth 刷新失败 ({})", status)
+        } else {
+            format!("Kiro Desktop Auth 刷新失败 ({}): {}", status, message)
+        });
+    }
+
+    serde_json::from_str::<OidcTokenResponse>(&response_text)
+        .map_err(|e| format!("解析 Kiro Desktop Auth 响应失败: {}", e))
 }
 
 // 核心验证函数
@@ -153,68 +323,88 @@ pub async fn verify_account_credentials(
     region: Option<String>,
 ) -> Result<VerifyCredentialsResponse, String> {
     let region = region.unwrap_or_else(|| "us-east-1".to_string());
+    let refresh_token = refresh_token.trim().to_string();
+    let client_id = client_id.trim().to_string();
+    let client_secret = client_secret.trim().to_string();
     
     println!("[验证] 开始验证账号凭证");
     println!("[验证] Region: {}", region);
-    println!("[验证] Client ID: {}...", &client_id[..client_id.len().min(20)]);
-    
-    // 步骤 1: 使用 refresh_token 获取 access_token
-    let oidc_url = format!("https://oidc.{}.amazonaws.com/token", region);
-    // 备用 URL: sso-oidc 端点
-    let sso_oidc_url = format!("https://sso-oidc.{}.amazonaws.com/token", region);
-    println!("[验证] OIDC URL: {}", oidc_url);
-    println!("[验证] SSO-OIDC URL (备用): {}", sso_oidc_url);
-    
-    let client = http_client();
-    
-    let oidc_payload = json!({
-        "clientId": client_id,
-        "clientSecret": client_secret,
-        "refreshToken": refresh_token,
-        "grantType": "refresh_token"
-    });
-    
-    // 先尝试 oidc 端点，失败则回退到 sso-oidc 端点
-    println!("[验证] 发送 OIDC 请求...");
-    let oidc_response = {
-        let resp = client
-            .post(&oidc_url)
-            .header("Content-Type", "application/json")
-            .json(&oidc_payload)
-            .send()
-            .await;
-        
-        match resp {
-            Ok(r) if r.status().is_success() => r,
-            _ => {
-                println!("[验证] 主 OIDC 端点失败，尝试 sso-oidc 备用端点...");
-                client
-                    .post(&sso_oidc_url)
-                    .header("Content-Type", "application/json")
-                    .json(&oidc_payload)
-                    .send()
-                    .await
-                    .map_err(|e| format!("OIDC 请求失败: {}", e))?
-            }
-        }
-    };
-    
-    println!("[验证] OIDC 响应状态: {}", oidc_response.status());
-    
-    if !oidc_response.status().is_success() {
-        let status = oidc_response.status();
-        let error_text = oidc_response.text().await.unwrap_or_default();
-        return Ok(VerifyCredentialsResponse {
-            success: false,
-            data: None,
-            error: Some(format!("OIDC 认证失败 ({}): {}", status, error_text)),
-        });
+    if client_id.is_empty() {
+        println!("[验证] Client ID: <empty>");
+    } else {
+        println!("[验证] Client ID: {}...", &client_id[..client_id.len().min(20)]);
     }
     
-    let oidc_data: OidcTokenResponse = oidc_response
-        .json()
-        .await
-        .map_err(|e| format!("解析 OIDC 响应失败: {}", e))?;
+    // 步骤 1: 使用 refresh_token 获取 access_token
+    let client = http_client();
+
+    let oidc_data: OidcTokenResponse = if client_id.is_empty() || client_secret.is_empty() {
+        match refresh_desktop_auth_token(&refresh_token).await {
+            Ok(data) => data,
+            Err(error) => {
+                return Ok(VerifyCredentialsResponse {
+                    success: false,
+                    data: None,
+                    error: Some(error),
+                });
+            }
+        }
+    } else {
+        let oidc_url = format!("https://oidc.{}.amazonaws.com/token", region);
+        // 备用 URL: sso-oidc 端点
+        let sso_oidc_url = format!("https://sso-oidc.{}.amazonaws.com/token", region);
+        println!("[验证] OIDC URL: {}", oidc_url);
+        println!("[验证] SSO-OIDC URL (备用): {}", sso_oidc_url);
+
+        let oidc_payload = json!({
+            "clientId": &client_id,
+            "clientSecret": &client_secret,
+            "refreshToken": &refresh_token,
+            "grantType": "refresh_token"
+        });
+
+        // 先尝试 oidc 端点，失败则回退到 sso-oidc 端点
+        println!("[验证] 发送 OIDC 请求...");
+        let oidc_response = {
+            let resp = client
+                .post(&oidc_url)
+                .header("Content-Type", "application/json")
+                .json(&oidc_payload)
+                .send()
+                .await;
+
+            match resp {
+                Ok(r) if r.status().is_success() => r,
+                _ => {
+                    println!("[验证] 主 OIDC 端点失败，尝试 sso-oidc 备用端点...");
+                    client
+                        .post(&sso_oidc_url)
+                        .header("Content-Type", "application/json")
+                        .json(&oidc_payload)
+                        .send()
+                        .await
+                        .map_err(|e| format!("OIDC 请求失败: {}", e))?
+                }
+            }
+        };
+
+        println!("[验证] OIDC 响应状态: {}", oidc_response.status());
+
+        if !oidc_response.status().is_success() {
+            let status = oidc_response.status();
+            let error_text = oidc_response.text().await.unwrap_or_default();
+            return Ok(VerifyCredentialsResponse {
+                success: false,
+                data: None,
+                error: Some(format!("OIDC 认证失败 ({}): {}", status, error_text)),
+            });
+        }
+
+        oidc_response
+            .json()
+            .await
+            .map_err(|e| format!("解析 OIDC 响应失败: {}", e))?
+    };
     
     println!("[OIDC] Token 刷新成功");
     println!("[OIDC] Access Token 长度: {}", oidc_data.access_token.len());
@@ -316,6 +506,11 @@ pub async fn verify_account_credentials(
                             },
                             days_remaining: None,
                             expires_at: None,
+                            raw_type: Some("FREE".to_string()),
+                            management_target: None,
+                            upgrade_capability: None,
+                            overage_capability: None,
+                            overage_status: None,
                         }),
                         error: Some(err),
                     });
@@ -409,6 +604,32 @@ pub async fn verify_account_credentials(
         .as_ref()
         .and_then(|s| s.subscription_title.clone())
         .unwrap_or_else(|| "KIRO FREE".to_string());
+
+    let raw_type = usage_data
+        .subscription_info
+        .as_ref()
+        .and_then(|s| s.raw_type.clone())
+        .or_else(|| Some(subscription_type.clone()));
+
+    let management_target = usage_data
+        .subscription_info
+        .as_ref()
+        .and_then(|s| s.management_target.clone());
+
+    let upgrade_capability = usage_data
+        .subscription_info
+        .as_ref()
+        .and_then(|s| s.upgrade_capability.clone());
+
+    let overage_capability = usage_data
+        .subscription_info
+        .as_ref()
+        .and_then(|s| s.overage_capability.clone());
+
+    let overage_status = usage_data
+        .overage_configuration
+        .as_ref()
+        .and_then(|config| config.overage_status.clone());
     
     println!("[API] 订阅类型: {}", subscription_type);
     println!("[API] 订阅标题: {}", subscription_title);
@@ -446,6 +667,11 @@ pub async fn verify_account_credentials(
             },
             days_remaining,
             expires_at: None,
+            raw_type,
+            management_target,
+            upgrade_capability,
+            overage_capability,
+            overage_status,
         }),
         error: None,
     })
@@ -521,4 +747,96 @@ fn extract_usage_info(usage_data: &UsageLimitsResponse) -> (f64, f64, Option<u32
     }
     
     (current_usage, usage_limit, days_remaining)
+}
+
+#[tauri::command]
+pub async fn enable_overages(
+    access_token: String,
+    profile_arn: String,
+    region: Option<String>,
+) -> Result<OverageResponse, String> {
+    if access_token.trim().is_empty() {
+        return Ok(OverageResponse {
+            success: false,
+            error: Some("缺少 Access Token".to_string()),
+        });
+    }
+
+    if profile_arn.trim().is_empty() {
+        return Ok(OverageResponse {
+            success: false,
+            error: Some("缺少 profileArn".to_string()),
+        });
+    }
+
+    if !profile_arn.starts_with("arn:aws:codewhisperer:") {
+        return Ok(OverageResponse {
+            success: false,
+            error: Some("profileArn 格式不正确，请先打开 Kiro 登录一次后再试".to_string()),
+        });
+    }
+
+    let region = region.unwrap_or_else(|| "us-east-1".to_string());
+    let api_base = if region.starts_with("eu-") {
+        "https://q.eu-central-1.amazonaws.com"
+    } else {
+        "https://q.us-east-1.amazonaws.com"
+    };
+    let url = format!("{}/setUserPreference", api_base);
+    let payload = json!({
+        "profileArn": profile_arn,
+        "overageConfiguration": {
+            "overageStatus": "ENABLED"
+        }
+    });
+
+    println!("[Overages] 开始开通超额配置");
+    println!("[Overages] API Base: {}", api_base);
+    println!("[Overages] ProfileArn: {}", mask_profile_arn(&profile_arn));
+
+    let response = http_client()
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            println!("[Overages] 请求发送失败: {}", e);
+            format!("开通 Overages 请求失败: {}", e)
+        })?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    println!("[Overages] 响应状态: {}", status);
+
+    if status.is_success() {
+        return Ok(OverageResponse {
+            success: true,
+            error: None,
+        });
+    }
+
+    let friendly_error = serde_json::from_str::<serde_json::Value>(&response_text)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("message")
+                .and_then(|m| m.as_str())
+                .or_else(|| value.get("reason").and_then(|r| r.as_str()))
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| {
+            if response_text.is_empty() {
+                format!("API 返回错误: {}", status)
+            } else {
+                format!("API 返回错误 ({}): {}", status, response_text)
+            }
+        });
+
+    Ok(OverageResponse {
+        success: false,
+        error: Some(friendly_error),
+    })
 }

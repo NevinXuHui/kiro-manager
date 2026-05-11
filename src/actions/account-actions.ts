@@ -13,11 +13,56 @@ function isSuspendedError(message: string): boolean {
   )
 }
 
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return JSON.stringify(error) || '未知错误'
+}
+
+function isOveragesEligible(account: Account): boolean {
+  const planText = `${account.subscription.type || ''} ${account.subscription.title || ''} ${account.subscription.rawType || ''}`.toUpperCase()
+  return (
+    !planText.includes('FREE') &&
+    (
+      planText.includes('PRO') ||
+      planText.includes('TEAM') ||
+      planText.includes('ENTERPRISE') ||
+      Boolean(account.subscription.overageCapability)
+    )
+  )
+}
+
+function isOveragesEnabled(account: Account): boolean {
+  return account.subscription.overageStatus === 'ENABLED' || account.usage.resourceDetail?.overageEnabled === true
+}
+
+function isProfileArn(value: string | undefined): value is string {
+  return Boolean(value && value.startsWith('arn:aws:codewhisperer:'))
+}
+
+async function getProfileArn(account: Account): Promise<string> {
+  const subscription = account.subscription as Account['subscription'] & {
+    profileArn?: string
+    profile_arn?: string
+  }
+  const savedProfileArn = subscription.profileArn || subscription.profile_arn
+  if (isProfileArn(savedProfileArn)) return savedProfileArn
+
+  const latestProfileArn = await (window as any).__TAURI__.core.invoke('get_latest_kiro_profile_arn')
+  return isProfileArn(latestProfileArn) ? latestProfileArn : ''
+}
+
+interface EnableOveragesOptions {
+  confirm?: boolean
+  showToasts?: boolean
+  refreshAfter?: boolean
+}
+
 /**
  * 刷新账号信息
  */
 export async function refreshAccount(account: Account, silent: boolean = false): Promise<void> {
-  if (!account.credentials.refreshToken || !account.credentials.clientId || !account.credentials.clientSecret) {
+  if (!account.credentials.refreshToken) {
     if (!silent) window.UI?.toast.error('账号缺少刷新凭证')
     throw new Error('账号缺少刷新凭证')
   }
@@ -27,11 +72,9 @@ export async function refreshAccount(account: Account, silent: boolean = false):
   try {
     const result = await (window as any).__TAURI__.core.invoke('verify_account_credentials', {
       refreshToken: account.credentials.refreshToken,
-      clientId: account.credentials.clientId,
-      clientSecret: account.credentials.clientSecret,
-      region: account.credentials.region || 'us-east-1',
-      authMethod: account.credentials.authMethod || 'IdC',
-      provider: account.credentials.provider || account.idp
+      clientId: account.credentials.clientId || '',
+      clientSecret: account.credentials.clientSecret || '',
+      region: account.credentials.region || 'us-east-1'
     })
 
     if (result.success && result.data) {
@@ -49,15 +92,17 @@ export async function refreshAccount(account: Account, silent: boolean = false):
           type: result.data.subscription_type,
           title: result.data.subscription_title,
           rawType: result.data.raw_type,
+          profileArn: account.subscription.profileArn,
           upgradeCapability: result.data.upgrade_capability,
           overageCapability: result.data.overage_capability,
+          overageStatus: result.data.overage_status || account.subscription.overageStatus,
           managementTarget: result.data.management_target,
           daysRemaining: result.data.days_remaining
         },
         usage: {
           current: result.data.usage.current,
           limit: result.data.usage.limit,
-          percentUsed: result.data.usage.current / result.data.usage.limit,
+          percentUsed: result.data.usage.limit > 0 ? result.data.usage.current / result.data.usage.limit : 0,
           lastUpdated: now,
           nextResetDate: result.data.usage.nextResetDate,
           baseLimit: result.data.usage.baseLimit,
@@ -107,18 +152,16 @@ export async function refreshAccount(account: Account, silent: boolean = false):
  * 只刷新 Token（不更新账号信息）
  */
 export async function refreshTokenOnly(account: Account): Promise<void> {
-  if (!account.credentials.refreshToken || !account.credentials.clientId || !account.credentials.clientSecret) {
+  if (!account.credentials.refreshToken) {
     throw new Error('账号缺少刷新凭证')
   }
 
   try {
     const result = await (window as any).__TAURI__.core.invoke('verify_account_credentials', {
       refreshToken: account.credentials.refreshToken,
-      clientId: account.credentials.clientId,
-      clientSecret: account.credentials.clientSecret,
-      region: account.credentials.region || 'us-east-1',
-      authMethod: account.credentials.authMethod || 'IdC',
-      provider: account.credentials.provider || account.idp
+      clientId: account.credentials.clientId || '',
+      clientSecret: account.credentials.clientSecret || '',
+      region: account.credentials.region || 'us-east-1'
     })
 
     if (result.success && result.data) {
@@ -159,6 +202,85 @@ export async function refreshTokenOnly(account: Account): Promise<void> {
   } catch (error) {
     throw error
   }
+}
+
+/**
+ * 为 Pro 及以上账号开通 Overages 超额配置
+ */
+export async function enableOveragesForAccount(account: Account, options: EnableOveragesOptions = {}): Promise<boolean> {
+  const { confirm = true, showToasts = true, refreshAfter = true } = options
+
+  if (!isOveragesEligible(account)) {
+    if (showToasts) window.UI?.toast.warning('Overages 仅 Pro 及以上套餐可用')
+    return false
+  }
+
+  if (account.status !== 'active') {
+    if (showToasts) window.UI?.toast.warning('仅正常账号可开通 Overages')
+    return false
+  }
+
+  if (isOveragesEnabled(account)) {
+    if (showToasts) window.UI?.toast.info('Overages 已开通')
+    return true
+  }
+
+  if (confirm) {
+    const confirmed = window.confirm(`确定为 ${account.email} 开通 Overages 超额配置吗？`)
+    if (!confirmed) return false
+  }
+
+  let currentAccount = account
+  const tokenExpiresSoon = !currentAccount.credentials.accessToken ||
+    (currentAccount.credentials.expiresAt && currentAccount.credentials.expiresAt - Date.now() < 2 * 60 * 1000)
+
+  if (tokenExpiresSoon && currentAccount.credentials.refreshToken) {
+    if (showToasts) window.UI?.toast.info('Token 即将过期，先刷新账号凭证')
+    await refreshTokenOnly(currentAccount)
+    currentAccount = accountStore.getAccounts().find(a => a.id === account.id) || currentAccount
+  }
+
+  const profileArn = await getProfileArn(currentAccount)
+  if (!profileArn) {
+    if (showToasts) window.UI?.toast.error('缺少 profileArn，请先刷新账号后再试')
+    throw new Error('缺少 profileArn')
+  }
+
+  if (!currentAccount.credentials.accessToken) {
+    if (showToasts) window.UI?.toast.error('缺少 Access Token，请先刷新账号')
+    throw new Error('缺少 Access Token')
+  }
+
+  if (showToasts) window.UI?.toast.info('正在开通 Overages...')
+  const result = await (window as any).__TAURI__.core.invoke('enable_overages', {
+    accessToken: currentAccount.credentials.accessToken,
+    profileArn,
+    region: currentAccount.credentials.region || 'us-east-1'
+  })
+
+  if (!result.success) {
+    throw new Error(result.error || '开通 Overages 失败')
+  }
+
+  accountStore.updateAccount(currentAccount.id, {
+    subscription: {
+      ...currentAccount.subscription,
+      overageStatus: 'ENABLED'
+    }
+  })
+
+  if (showToasts) window.UI?.toast.success('Overages 已开通')
+
+  if (refreshAfter) {
+    try {
+      await refreshAccount(currentAccount, true)
+      accountStore.notifyAccountsChanged()
+    } catch (error) {
+      console.warn('[Overages] 开通后刷新账号失败:', error)
+    }
+  }
+
+  return true
 }
 
 /**
@@ -251,7 +373,7 @@ export async function handleBatchCheck(selectedIds: Set<string>): Promise<void> 
     const batch = selectedAccounts.slice(i, i + batchSize)
     await Promise.all(batch.map(async (account) => {
       try {
-        if (!account.credentials.refreshToken || !account.credentials.clientId || !account.credentials.clientSecret) {
+        if (!account.credentials.refreshToken) {
           failedCount++
           accountStore.updateAccount(account.id, { status: 'error', lastError: '缺少凭证信息' })
           return
@@ -260,15 +382,46 @@ export async function handleBatchCheck(selectedIds: Set<string>): Promise<void> 
         // 只验证凭证是否有效，不更新详细信息
         const result = await (window as any).__TAURI__.core.invoke('verify_account_credentials', {
           refreshToken: account.credentials.refreshToken,
-          clientId: account.credentials.clientId,
-          clientSecret: account.credentials.clientSecret,
-          region: account.credentials.region || 'us-east-1',
-          authMethod: account.credentials.authMethod || 'IdC',
-          provider: account.credentials.provider || account.idp
+          clientId: account.credentials.clientId || '',
+          clientSecret: account.credentials.clientSecret || '',
+          region: account.credentials.region || 'us-east-1'
         })
 
-        if (result.success) {
+        if (result.success && result.data) {
+          const now = Date.now()
           accountStore.updateAccount(account.id, {
+            email: result.data.email,
+            userId: result.data.user_id,
+            credentials: {
+              ...account.credentials,
+              accessToken: result.data.access_token,
+              refreshToken: result.data.refresh_token,
+              expiresAt: now + (result.data.expires_in || 3600) * 1000
+            },
+            subscription: {
+              type: result.data.subscription_type,
+              title: result.data.subscription_title,
+              rawType: result.data.raw_type,
+              profileArn: account.subscription.profileArn,
+              upgradeCapability: result.data.upgrade_capability,
+              overageCapability: result.data.overage_capability,
+              overageStatus: result.data.overage_status || account.subscription.overageStatus,
+              managementTarget: result.data.management_target,
+              daysRemaining: result.data.days_remaining
+            },
+            usage: {
+              current: result.data.usage.current,
+              limit: result.data.usage.limit,
+              percentUsed: result.data.usage.limit > 0 ? result.data.usage.current / result.data.usage.limit : 0,
+              lastUpdated: now,
+              nextResetDate: result.data.usage.nextResetDate,
+              baseLimit: result.data.usage.baseLimit,
+              baseCurrent: result.data.usage.baseCurrent,
+              freeTrialLimit: result.data.usage.freeTrialLimit,
+              freeTrialCurrent: result.data.usage.freeTrialCurrent,
+              freeTrialExpiry: result.data.usage.freeTrialExpiry,
+              resourceDetail: result.data.usage.resourceDetail
+            },
             status: 'active',
             lastError: undefined
           })
@@ -380,6 +533,84 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
 }
 
 /**
+ * 批量为选中账号开通 Overages
+ */
+export async function handleBatchEnableOverages(selectedIds: Set<string>): Promise<void> {
+  const selectedAccounts = accountStore.getAccounts().filter(a => selectedIds.has(a.id))
+
+  if (selectedAccounts.length === 0) {
+    window.UI?.toast.warning('请先选择要开通 Overages 的账号')
+    return
+  }
+
+  const targets = selectedAccounts.filter(account =>
+    account.status === 'active' &&
+    isOveragesEligible(account) &&
+    !isOveragesEnabled(account)
+  )
+  const skippedCount = selectedAccounts.length - targets.length
+
+  if (targets.length === 0) {
+    window.UI?.toast.info(skippedCount > 0 ? '选中账号无需开通 Overages' : '没有可开通的账号')
+    return
+  }
+
+  const confirmed = window.confirm(`将为 ${targets.length} 个选中账号开通 Overages 超额配置。该功能仅适用于 Pro 及以上套餐，确定继续吗？`)
+  if (!confirmed) return
+
+  let successCount = 0
+  let failedCount = 0
+  let completedCount = 0
+  const progress = openFloatingProgress({
+    id: 'batch-enable-overages',
+    title: '正在批量开通 Overages',
+    total: targets.length,
+    detail: `0/${targets.length} 已完成`
+  })
+
+  const batchSize = 3
+  for (let i = 0; i < targets.length; i += batchSize) {
+    const batch = targets.slice(i, i + batchSize)
+    await Promise.all(batch.map(async (account) => {
+      try {
+        const enabled = await enableOveragesForAccount(account, {
+          confirm: false,
+          showToasts: false,
+          refreshAfter: true
+        })
+        if (enabled) {
+          successCount++
+        } else {
+          failedCount++
+        }
+      } catch (error) {
+        failedCount++
+        accountStore.updateAccount(account.id, {
+          lastError: formatUnknownError(error)
+        })
+      } finally {
+        completedCount++
+        progress.update({
+          completed: completedCount,
+          total: targets.length,
+          detail: `成功 ${successCount} 个，失败 ${failedCount} 个${skippedCount > 0 ? `，跳过 ${skippedCount} 个` : ''}`
+        })
+      }
+    }))
+  }
+
+  if (failedCount === 0) {
+    progress.finish(`Overages 开通完成：成功 ${successCount} 个${skippedCount > 0 ? `，跳过 ${skippedCount} 个` : ''}`, 'success')
+    window.UI?.toast.success(`Overages 开通完成：成功 ${successCount} 个`)
+  } else {
+    progress.finish(`Overages 开通完成：成功 ${successCount} 个，失败 ${failedCount} 个`, 'warning')
+    window.UI?.toast.warning(`Overages 开通完成：成功 ${successCount} 个，失败 ${failedCount} 个`)
+  }
+
+  accountStore.notifyAccountsChanged()
+}
+
+/**
  * 批量删除账号
  */
 export function handleBatchDelete(selectedIds: Set<string>, onClear: () => void): void {
@@ -460,11 +691,6 @@ export async function switchToAccount(account: Account): Promise<void> {
 
   // 检查凭证完整性
   if (!credentials.refreshToken) {
-    window.UI?.toast.error('账号凭证不完整，无法切换')
-    throw new Error('账号凭证不完整')
-  }
-
-  if (credentials.authMethod !== 'social' && (!credentials.clientId || !credentials.clientSecret)) {
     window.UI?.toast.error('账号凭证不完整，无法切换')
     throw new Error('账号凭证不完整')
   }

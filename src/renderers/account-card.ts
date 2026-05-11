@@ -23,13 +23,77 @@ function formatUsagePercent(percent: number, usePrecision: boolean): string {
   return (percent * 100).toFixed(0)
 }
 
+function hasRealEmail(email: string): boolean {
+  return Boolean(email && email.includes('@') && !email.startsWith('(已封禁)'))
+}
+
+function formatDisplayEmail(account: Account): string {
+  if (account.status === 'suspended' && !hasRealEmail(account.email)) {
+    return '已封禁账号'
+  }
+  return accountStore.maskEmail(account.email)
+}
+
+function formatDisplayNickname(account: Account): string {
+  const nickname = account.nickname || ''
+  const shortUserId = account.userId?.slice(0, 8)
+  if (
+    account.status === 'suspended' &&
+    !hasRealEmail(account.email) &&
+    (!nickname || nickname === shortUserId || /^[a-f0-9]{8}$/i.test(nickname))
+  ) {
+    return ''
+  }
+  return accountStore.maskNickname(nickname)
+}
+
+function formatDaysRemaining(days: unknown): string {
+  return typeof days === 'number' && Number.isFinite(days) ? `剩 ${days} 天` : '-'
+}
+
+function isDaysWarning(days: unknown): boolean {
+  return typeof days === 'number' && Number.isFinite(days) && days <= 7
+}
+
+function canShowOveragesAction(account: Account): boolean {
+  const planText = `${account.subscription.type || ''} ${account.subscription.title || ''} ${account.subscription.rawType || ''}`.toUpperCase()
+  return (
+    account.status === 'active' &&
+    !planText.includes('FREE') &&
+    (
+      planText.includes('PRO') ||
+      planText.includes('TEAM') ||
+      planText.includes('ENTERPRISE') ||
+      Boolean(account.subscription.overageCapability)
+    )
+  )
+}
+
+function isOveragesEnabled(account: Account): boolean {
+  return account.subscription.overageStatus === 'ENABLED' || account.usage.resourceDetail?.overageEnabled === true
+}
+
+function renderOveragesButton(account: Account): string {
+  const enabled = isOveragesEnabled(account)
+  return `
+  <button class="btn-icon overages-action ${enabled ? 'enabled' : ''}" title="${enabled ? 'Overages 已开通' : '开通超额'}" data-action="enable-overages">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2v20"></path>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H6"></path>
+      <path d="M19 12l3 3-3 3"></path>
+      <path d="M22 15h-7"></path>
+    </svg>
+  </button>
+`
+}
+
 /**
  * 渲染账号卡片（网格视图）
  */
 export function renderAccountCard(account: Account, isSelected: boolean): string {
   const settings = accountStore.getSettings()
-  const displayEmail = accountStore.maskEmail(account.email)
-  const displayNickname = accountStore.maskNickname(account.nickname)
+  const displayEmail = formatDisplayEmail(account)
+  const displayNickname = formatDisplayNickname(account)
   const subscriptionColor = getSubscriptionColor(account.subscription.type)
   const isHighUsage = account.usage.percentUsed > 0.8
   const isActive = accountStore.getActiveAccountId() === account.id
@@ -77,12 +141,12 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
 
       <!-- 底部信息栏 -->
       <div class="card-footer-info">
-        <div class="footer-info-item ${account.subscription.daysRemaining !== undefined && account.subscription.daysRemaining <= 7 ? 'warning' : ''}">
+        <div class="footer-info-item ${isDaysWarning(account.subscription.daysRemaining) ? 'warning' : ''}">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
-          <span>${account.subscription.daysRemaining !== undefined ? `剩 ${account.subscription.daysRemaining} 天` : '-'}</span>
+          <span>${formatDaysRemaining(account.subscription.daysRemaining)}</span>
         </div>
         <div class="footer-info-item ${account.credentials.expiresAt && account.credentials.expiresAt - Date.now() < 5 * 60 * 1000 ? 'danger' : ''}">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
@@ -121,6 +185,7 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
             <line x1="1" y1="14" x2="4" y2="14"></line>
           </svg>
         </button>
+        ${canShowOveragesAction(account) ? renderOveragesButton(account) : ''}
         <button class="btn-icon" title="刷新" data-action="refresh">
           <svg viewBox="0 0 24 24" width="16" height="16">
             <polyline points="23 4 23 10 17 10" fill="none" stroke="currentColor" stroke-width="2"></polyline>
@@ -156,8 +221,8 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
  */
 export function renderAccountListItem(account: Account, isSelected: boolean): string {
   const settings = accountStore.getSettings()
-  const displayEmail = accountStore.maskEmail(account.email)
-  const displayNickname = accountStore.maskNickname(account.nickname)
+  const displayEmail = formatDisplayEmail(account)
+  const displayNickname = formatDisplayNickname(account)
   const subscriptionColor = getSubscriptionColor(account.subscription.type)
   const isHighUsage = account.usage.percentUsed > 0.8
   const isActive = accountStore.getActiveAccountId() === account.id
@@ -192,12 +257,12 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
         <div class="list-usage-percent ${isHighUsage ? 'warning' : ''}">${formatUsagePercent(account.usage.percentUsed, settings.usagePrecision)}%</div>
       </div>
       <div class="list-item-info">
-        <div class="list-info-item ${account.subscription.daysRemaining !== undefined && account.subscription.daysRemaining <= 7 ? 'warning' : ''}">
+        <div class="list-info-item ${isDaysWarning(account.subscription.daysRemaining) ? 'warning' : ''}">
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
-          <span>${account.subscription.daysRemaining !== undefined ? `剩 ${account.subscription.daysRemaining} 天` : '-'}</span>
+          <span>${formatDaysRemaining(account.subscription.daysRemaining)}</span>
         </div>
         <div class="list-info-item ${account.credentials.expiresAt && account.credentials.expiresAt - Date.now() < 5 * 60 * 1000 ? 'danger' : ''}">
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
@@ -234,6 +299,7 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
             <line x1="1" y1="14" x2="4" y2="14"></line>
           </svg>
         </button>
+        ${canShowOveragesAction(account) ? renderOveragesButton(account) : ''}
         <button class="btn-icon" title="刷新" data-action="refresh">
           <svg viewBox="0 0 24 24" width="16" height="16">
             <polyline points="23 4 23 10 17 10" fill="none" stroke="currentColor" stroke-width="2"></polyline>

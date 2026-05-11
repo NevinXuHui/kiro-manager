@@ -1,6 +1,6 @@
 /* 基础变量和重置样式 */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-size: 14px;

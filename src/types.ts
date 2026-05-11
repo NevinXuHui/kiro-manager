@@ -66,11 +66,13 @@ export interface AccountSubscription {
   type: SubscriptionType
   title?: string
   rawType?: string
+  profileArn?: string
   expiresAt?: number
   daysRemaining?: number
   managementTarget?: string
   upgradeCapability?: string
   overageCapability?: string
+  overageStatus?: string
 }
 
 export interface Account {

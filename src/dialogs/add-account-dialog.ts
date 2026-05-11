@@ -35,7 +35,7 @@ export function showAddAccountDialog(): void {
               <button class="provider-btn active" id="provider-google" onclick="window.selectSocialProvider('Google')">Google</button>
               <button class="provider-btn" id="provider-github" onclick="window.selectSocialProvider('Github')">GitHub</button>
             </div>
-            <p class="form-hint">社交登录不需要 Client ID 和 Client Secret</p>
+            <p class="form-hint">Client ID 和 Client Secret 可留空，留空时使用 Kiro Desktop Auth 验活</p>
           </div>
 
           <div class="form-section">
@@ -241,10 +241,11 @@ export function showAddAccountDialog(): void {
         return
       }
 
-      // Social 登录不需要 clientId 和 clientSecret
-      if (currentLoginType !== 'Social') {
+      // 缺少 clientId/clientSecret 时后端会走 Kiro Desktop Auth refreshToken。
+      // 如果用户填写了其中一个，则仍校验成对填写，避免半截凭证造成误判。
+      if (currentLoginType !== 'Social' && (clientId || clientSecret)) {
         if (!clientId || !clientSecret) {
-          window.UI?.toast.error('请填写所有必填项')
+          window.UI?.toast.error('Client ID 和 Client Secret 需要成对填写，或都留空')
           return
         }
 
@@ -276,14 +277,12 @@ export function showAddAccountDialog(): void {
           refreshToken,
           clientId: currentLoginType === 'Social' ? '' : clientId,
           clientSecret: currentLoginType === 'Social' ? '' : clientSecret,
-          region,
-          authMethod: currentLoginType === 'Social' ? 'social' : 'IdC',
-          provider
+          region
         })
 
         if (result.success && result.data) {
           const now = Date.now()
-          accountStore.addAccount({
+        accountStore.addAccount({
             email: result.data.email,
             nickname: result.data.email ? result.data.email.split('@')[0] : undefined,
             idp: provider as any,
@@ -296,7 +295,7 @@ export function showAddAccountDialog(): void {
               clientSecret: currentLoginType === 'Social' ? '' : clientSecret,
               region: region,
               expiresAt: result.data.expires_in ? now + result.data.expires_in * 1000 : now + 3600 * 1000,
-              authMethod: currentLoginType === 'Social' ? 'social' : 'IdC',
+              authMethod: currentLoginType === 'Social' || !clientId || !clientSecret ? 'social' : 'IdC',
               provider: provider
             },
             subscription: {
@@ -307,7 +306,8 @@ export function showAddAccountDialog(): void {
               expiresAt: result.data.expires_at,
               managementTarget: result.data.management_target,
               upgradeCapability: result.data.upgrade_capability,
-              overageCapability: result.data.overage_capability
+              overageCapability: result.data.overage_capability,
+              overageStatus: result.data.overage_status
             },
             usage: {
               current: result.data.usage.current,
@@ -445,9 +445,11 @@ export function showAddAccountDialog(): void {
           type,
           title: subInfo.subscriptionTitle,
           rawType: subInfo.type,
+          profileArn: subInfo.profileArn,
           managementTarget: subInfo.subscriptionManagementTarget,
           upgradeCapability: subInfo.upgradeCapability,
-          overageCapability: subInfo.overageCapability
+          overageCapability: subInfo.overageCapability,
+          overageStatus: subInfo.overageStatus || subInfo.overageConfiguration?.overageStatus
         }
       }
 
@@ -528,21 +530,14 @@ export function showAddAccountDialog(): void {
           else {
             const provider = item.provider || 'BuilderId'
             const isSocial = provider === 'Google' || provider === 'Github'
-            const authMethod = isSocial ? 'social' : 'IdC'
-
-            if (!isSocial && (!item.clientId || !item.clientSecret)) {
-              failedCount++
-              errors.push(`#${i + 1}: ${provider} 需要 clientId 和 clientSecret`)
-              return
-            }
+            const hasClientCredentials = Boolean(item.clientId && item.clientSecret)
+            const authMethod = isSocial || !hasClientCredentials ? 'social' : 'IdC'
 
             const result = await (window as any).__TAURI__.core.invoke('verify_account_credentials', {
               refreshToken: item.refreshToken,
               clientId: item.clientId || '',
               clientSecret: item.clientSecret || '',
-              region: item.region || 'us-east-1',
-              authMethod,
-              provider
+              region: item.region || 'us-east-1'
             })
 
             if (result.success && result.data) {
@@ -571,7 +566,8 @@ export function showAddAccountDialog(): void {
                   expiresAt: result.data.expires_at,
                   managementTarget: result.data.management_target,
                   upgradeCapability: result.data.upgrade_capability,
-                  overageCapability: result.data.overage_capability
+                  overageCapability: result.data.overage_capability,
+                  overageStatus: result.data.overage_status
                 },
                 usage: {
                   current: result.data.usage.current,
@@ -597,10 +593,10 @@ export function showAddAccountDialog(): void {
               // 封号场景：API 返回 success=false 但带回了 access_token/user_id 等部分数据
               // 仍存进列表，标记为 suspended（已封禁），让萌主在 UI 上能看到
               const now = Date.now()
-              const shortId = result.data.user_id.slice(0, 8)
+              const email = result.data.email || item.email || '已封禁账号'
               accountStore.addAccount({
-                email: result.data.email || `(已封禁) ${shortId}`,
-                nickname: shortId,
+                email,
+                nickname: email.includes('@') ? email.split('@')[0] : undefined,
                 idp: provider as any,
                 userId: result.data.user_id,
                 credentials: {

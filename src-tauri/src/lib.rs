@@ -53,6 +53,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             auth::verify_account_credentials,
+            auth::enable_overages,
+            auth::get_latest_kiro_profile_arn,
             storage::get_local_active_account,
             models::get_account_models,
             storage::load_accounts,
