@@ -302,6 +302,7 @@ export function showAddAccountDialog(): void {
               type: result.data.subscription_type,
               title: result.data.subscription_title,
               rawType: result.data.raw_type,
+              profileArn: result.data.profile_arn,
               daysRemaining: result.data.days_remaining,
               expiresAt: result.data.expires_at,
               managementTarget: result.data.management_target,
@@ -445,12 +446,30 @@ export function showAddAccountDialog(): void {
           type,
           title: subInfo.subscriptionTitle,
           rawType: subInfo.type,
-          profileArn: subInfo.profileArn,
+          profileArn: subInfo.profileArn || subInfo.profile_arn,
           managementTarget: subInfo.subscriptionManagementTarget,
           upgradeCapability: subInfo.upgradeCapability,
           overageCapability: subInfo.overageCapability,
           overageStatus: subInfo.overageStatus || subInfo.overageConfiguration?.overageStatus
         }
+      }
+
+      function normalizeProfileArn(value: unknown): string | undefined {
+        return typeof value === 'string' && value.startsWith('arn:aws:codewhisperer:')
+          ? value
+          : undefined
+      }
+
+      function getProfileArnFromItem(item: any): string | undefined {
+        return normalizeProfileArn(item?.profileArn) ||
+          normalizeProfileArn(item?.profile_arn) ||
+          normalizeProfileArn(item?.subscription?.profileArn) ||
+          normalizeProfileArn(item?.subscription?.profile_arn) ||
+          normalizeProfileArn(item?.usageData?.profileArn) ||
+          normalizeProfileArn(item?.usageData?.profile_arn) ||
+          normalizeProfileArn(item?.usageData?.subscriptionInfo?.profileArn) ||
+          normalizeProfileArn(item?.usage_data?.profile_arn) ||
+          normalizeProfileArn(item?.usage_data?.subscription_info?.profile_arn)
       }
 
       // 并发处理多个账号（限制 10 个并发，避免导入时请求过猛）
@@ -517,7 +536,10 @@ export function showAddAccountDialog(): void {
                 authMethod: item.authMethod || (isSocial ? 'social' : 'IdC'),
                 provider
               },
-              subscription: parseSubscriptionInfo(item.usageData?.subscriptionInfo),
+              subscription: {
+                ...parseSubscriptionInfo(item.usageData?.subscriptionInfo),
+                profileArn: getProfileArnFromItem(item)
+              },
               usage: parseUsageData(item.usageData),
               groupId: item.groupId || undefined,
               tags: item.tagLinks || [],
@@ -562,6 +584,7 @@ export function showAddAccountDialog(): void {
                   type: result.data.subscription_type,
                   title: result.data.subscription_title,
                   rawType: result.data.raw_type,
+                  profileArn: result.data.profile_arn || getProfileArnFromItem(item),
                   daysRemaining: result.data.days_remaining,
                   expiresAt: result.data.expires_at,
                   managementTarget: result.data.management_target,
@@ -612,7 +635,8 @@ export function showAddAccountDialog(): void {
                 },
                 subscription: {
                   type: 'Free' as any,
-                  title: result.data.subscription_title
+                  title: result.data.subscription_title,
+                  profileArn: result.data.profile_arn || getProfileArnFromItem(item)
                 },
                 usage: { current: 0, limit: 0, percentUsed: 0, lastUpdated: now },
                 groupId: undefined,

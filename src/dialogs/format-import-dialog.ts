@@ -84,6 +84,25 @@ function parseUsageData(usageData: any) {
   }
 }
 
+function normalizeProfileArn(value: unknown): string | undefined {
+  return typeof value === 'string' && value.startsWith('arn:aws:codewhisperer:')
+    ? value
+    : undefined
+}
+
+function extractProfileArnFromRaw(item: any): string | undefined {
+  return normalizeProfileArn(item?.profileArn) ||
+    normalizeProfileArn(item?.profile_arn) ||
+    normalizeProfileArn(item?.subscription?.profileArn) ||
+    normalizeProfileArn(item?.subscription?.profile_arn) ||
+    normalizeProfileArn(item?.usageData?.profileArn) ||
+    normalizeProfileArn(item?.usageData?.profile_arn) ||
+    normalizeProfileArn(item?.usage_data?.profileArn) ||
+    normalizeProfileArn(item?.usage_data?.profile_arn) ||
+    normalizeProfileArn(item?.usageData?.subscriptionInfo?.profileArn) ||
+    normalizeProfileArn(item?.usage_data?.subscription_info?.profile_arn)
+}
+
 /**
  * 智能解析：从任意格式的数据中提取账号信息
  */
@@ -231,6 +250,14 @@ function extractAccountFromObject(item: any): ParsedAccount | null {
   }
 
   if (!refreshToken) return null
+
+  const profileArn = extractProfileArnFromRaw(item) || normalizeProfileArn(deepFind(item, 'profileArn')) || normalizeProfileArn(deepFind(item, 'profile_arn'))
+  if (profileArn) {
+    subscription = {
+      ...(subscription || { type: 'Free' as const }),
+      profileArn
+    }
+  }
 
   const isSocial = provider === 'Google' || provider === 'Github'
   if (isSocial || !clientId || !clientSecret) authMethod = 'social'
@@ -507,6 +534,7 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
             type: result.data.subscription_type,
             title: result.data.subscription_title,
             rawType: result.data.raw_type,
+            profileArn: result.data.profile_arn || account.subscription?.profileArn,
             daysRemaining: result.data.days_remaining,
             expiresAt: result.data.expires_at,
             managementTarget: result.data.management_target,
@@ -553,7 +581,11 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
             authMethod: account.authMethod as any,
             provider: account.provider
           },
-          subscription: { type: 'Free' as any, title: result.data.subscription_title },
+          subscription: {
+            type: 'Free' as any,
+            title: result.data.subscription_title,
+            profileArn: result.data.profile_arn || account.subscription?.profileArn
+          },
           usage: { current: 0, limit: 0, percentUsed: 0, lastUpdated: now },
           groupId: undefined,
           tags: [],

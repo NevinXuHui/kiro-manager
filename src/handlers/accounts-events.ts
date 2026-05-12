@@ -170,6 +170,11 @@ export function attachAccountsEvents(
     batchOveragesBtn.addEventListener('click', () => handleBatchEnableOverages(selectedIds))
   }
 
+  const batchDisableOveragesBtn = container.querySelector('#batch-disable-overages-btn')
+  if (batchDisableOveragesBtn) {
+    batchDisableOveragesBtn.addEventListener('click', () => handleBatchEnableOverages(selectedIds, 'DISABLED'))
+  }
+
   const batchDeleteBtn = container.querySelector('#batch-delete-btn')
   if (batchDeleteBtn) {
     batchDeleteBtn.addEventListener('click', () => handleBatchDelete(selectedIds, () => { selectedIds.clear(); }))

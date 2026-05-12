@@ -19,6 +19,11 @@ function formatUnknownError(error: unknown): string {
   return JSON.stringify(error) || '未知错误'
 }
 
+function isInvalidBearerError(error: unknown): boolean {
+  const message = formatUnknownError(error).toLowerCase()
+  return message.includes('bearer token') && message.includes('invalid')
+}
+
 function isOveragesEligible(account: Account): boolean {
   const planText = `${account.subscription.type || ''} ${account.subscription.title || ''} ${account.subscription.rawType || ''}`.toUpperCase()
   return (
@@ -32,12 +37,60 @@ function isOveragesEligible(account: Account): boolean {
   )
 }
 
+async function refreshAccountTokenForOverages(account: Account, showToasts: boolean): Promise<Account> {
+  if (!account.credentials.refreshToken) return account
+
+  try {
+    if (showToasts) window.UI?.toast.info('正在刷新账号凭证...')
+    await refreshTokenOnly(account)
+    return accountStore.getAccounts().find(a => a.id === account.id) || account
+  } catch (error) {
+    console.warn('[Overages] 开通前刷新 Token 失败，继续尝试现有 Token:', error)
+    return accountStore.getAccounts().find(a => a.id === account.id) || account
+  }
+}
+
 function isOveragesEnabled(account: Account): boolean {
   return account.subscription.overageStatus === 'ENABLED' || account.usage.resourceDetail?.overageEnabled === true
 }
 
 function isProfileArn(value: string | undefined): value is string {
   return Boolean(value && value.startsWith('arn:aws:codewhisperer:'))
+}
+
+async function getLatestLocalProfileArn(): Promise<string> {
+  try {
+    const profileArn = await (window as any).__TAURI__.core.invoke('get_latest_kiro_profile_arn')
+    return isProfileArn(profileArn) ? profileArn : ''
+  } catch (error) {
+    console.log('[Overages] 读取本机 profileArn 失败:', error)
+    return ''
+  }
+}
+
+async function isSameAsLocalActiveAccount(account: Account): Promise<boolean> {
+  try {
+    const localResult = await (window as any).__TAURI__.core.invoke('get_local_active_account')
+    const localData = localResult?.success ? localResult.data : null
+    return Boolean(
+      localData?.refresh_token &&
+      account.credentials.refreshToken &&
+      localData.refresh_token === account.credentials.refreshToken
+    )
+  } catch {
+    return false
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
 }
 
 async function getProfileArn(account: Account): Promise<string> {
@@ -47,20 +100,71 @@ async function getProfileArn(account: Account): Promise<string> {
   }
   const savedProfileArn = subscription.profileArn || subscription.profile_arn
   if (isProfileArn(savedProfileArn)) return savedProfileArn
+  const isLocalActiveAccount = await isSameAsLocalActiveAccount(account)
 
-  const activeAccessToken = await (window as any).__TAURI__.core.invoke('get_active_account')
-  if (activeAccessToken && activeAccessToken === account.credentials.accessToken) {
-    const activeProfileArn = await (window as any).__TAURI__.core.invoke('get_latest_kiro_profile_arn')
-    return isProfileArn(activeProfileArn) ? activeProfileArn : ''
+  try {
+    const localResult = await (window as any).__TAURI__.core.invoke('get_local_active_account')
+    const localData = localResult?.success ? localResult.data : null
+    const localProfileArn = localData?.profile_arn
+    if (
+      isProfileArn(localProfileArn) &&
+      localData?.refresh_token &&
+      localData.refresh_token === account.credentials.refreshToken
+    ) {
+      accountStore.updateAccount(account.id, {
+        subscription: {
+          ...account.subscription,
+          profileArn: localProfileArn
+        }
+      })
+      return localProfileArn
+    }
+  } catch (error) {
+    console.log('[Overages] 读取本地 profileArn 缓存失败:', error)
   }
 
-  return ''
+  const activeAccessToken = await (window as any).__TAURI__.core.invoke('get_active_account')
+  if (isLocalActiveAccount || (activeAccessToken && activeAccessToken === account.credentials.accessToken)) {
+    const activeProfileArn = await getLatestLocalProfileArn()
+    if (isProfileArn(activeProfileArn)) {
+      accountStore.updateAccount(account.id, {
+        subscription: {
+          ...account.subscription,
+          profileArn: activeProfileArn
+        }
+      })
+      return activeProfileArn
+    }
+  }
+
+  if (account.credentials.refreshToken) {
+    try {
+      const fetchedArn = await (window as any).__TAURI__.core.invoke('fetch_profile_arn', {
+        refreshToken: account.credentials.refreshToken
+      })
+      if (isProfileArn(fetchedArn)) {
+        accountStore.updateAccount(account.id, {
+          subscription: {
+            ...account.subscription,
+            profileArn: fetchedArn
+          }
+        })
+        return fetchedArn
+      }
+    } catch (error) {
+      console.log('[Overages] fetch_profile_arn 失败:', error)
+    }
+  }
+
+  const DEFAULT_PROFILE_ARN = 'arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX'
+  return DEFAULT_PROFILE_ARN
 }
 
 interface EnableOveragesOptions {
   confirm?: boolean
   showToasts?: boolean
   refreshAfter?: boolean
+  overageStatus?: 'ENABLED' | 'DISABLED'
 }
 
 /**
@@ -83,9 +187,9 @@ export async function refreshAccount(account: Account, silent: boolean = false):
     })
 
     if (result.success && result.data) {
+      console.log('[刷新] profile_arn from backend:', result.data.profile_arn)
       const now = Date.now()
       accountStore.updateAccount(account.id, {
-        email: result.data.email,
         userId: result.data.user_id,
         credentials: {
           ...account.credentials,
@@ -97,7 +201,7 @@ export async function refreshAccount(account: Account, silent: boolean = false):
           type: result.data.subscription_type,
           title: result.data.subscription_title,
           rawType: result.data.raw_type,
-          profileArn: account.subscription.profileArn,
+          profileArn: result.data.profile_arn || account.subscription.profileArn,
           upgradeCapability: result.data.upgrade_capability,
           overageCapability: result.data.overage_capability,
           overageStatus: result.data.overage_status || account.subscription.overageStatus,
@@ -171,8 +275,7 @@ export async function refreshTokenOnly(account: Account): Promise<void> {
 
     if (result.success && result.data) {
       const now = Date.now()
-      // 只更新 Token 相关信息
-      accountStore.updateAccount(account.id, {
+      const updatePayload: any = {
         credentials: {
           ...account.credentials,
           accessToken: result.data.access_token,
@@ -181,7 +284,14 @@ export async function refreshTokenOnly(account: Account): Promise<void> {
         },
         status: 'active',
         lastError: undefined
-      })
+      }
+      if (result.data.profile_arn) {
+        updatePayload.subscription = {
+          ...account.subscription,
+          profileArn: result.data.profile_arn
+        }
+      }
+      accountStore.updateAccount(account.id, updatePayload)
     } else {
       const errorMsg = result.error || '刷新失败'
       const isSuspended = isSuspendedError(errorMsg)
@@ -213,7 +323,8 @@ export async function refreshTokenOnly(account: Account): Promise<void> {
  * 为 Pro 及以上账号开通 Overages 超额配置
  */
 export async function enableOveragesForAccount(account: Account, options: EnableOveragesOptions = {}): Promise<boolean> {
-  const { confirm = true, showToasts = true, refreshAfter = true } = options
+  const { confirm = true, showToasts = true, refreshAfter = true, overageStatus = 'ENABLED' } = options
+  const isDisabling = overageStatus === 'DISABLED'
 
   if (!isOveragesEligible(account)) {
     if (showToasts) window.UI?.toast.warning('Overages 仅 Pro 及以上套餐可用')
@@ -225,17 +336,20 @@ export async function enableOveragesForAccount(account: Account, options: Enable
     return false
   }
 
-  if (isOveragesEnabled(account)) {
+  if (!isDisabling && isOveragesEnabled(account)) {
     if (showToasts) window.UI?.toast.info('Overages 已开通')
     return true
   }
 
   if (confirm) {
-    const confirmed = window.confirm(`确定为 ${account.email} 开通 Overages 超额配置吗？`)
+    const confirmMsg = isDisabling
+      ? `确定为 ${account.email} 关闭 Overages 超额配置吗？`
+      : `确定为 ${account.email} 开通 Overages 超额配置吗？`
+    const confirmed = window.confirm(confirmMsg)
     if (!confirmed) return false
   }
 
-  let currentAccount = account
+  let currentAccount = await refreshAccountTokenForOverages(account, showToasts)
   const tokenExpiresSoon = !currentAccount.credentials.accessToken ||
     (currentAccount.credentials.expiresAt && currentAccount.credentials.expiresAt - Date.now() < 2 * 60 * 1000)
 
@@ -245,9 +359,21 @@ export async function enableOveragesForAccount(account: Account, options: Enable
     currentAccount = accountStore.getAccounts().find(a => a.id === account.id) || currentAccount
   }
 
-  const profileArn = await getProfileArn(currentAccount)
+  let profileArn = await getProfileArn(currentAccount)
+  console.log('[Overages] getProfileArn 结果:', profileArn, '账号subscription:', JSON.stringify((currentAccount.subscription as any)?.profileArn))
+  if (!profileArn && currentAccount.credentials.refreshToken) {
+    if (showToasts) window.UI?.toast.info('尝试通过完整刷新获取 profileArn...')
+    try {
+      await refreshAccount(currentAccount, true)
+      currentAccount = accountStore.getAccounts().find(a => a.id === account.id) || currentAccount
+      profileArn = await getProfileArn(currentAccount)
+      console.log('[Overages] 刷新后 getProfileArn 结果:', profileArn)
+    } catch (e) {
+      console.log('[Overages] 刷新失败:', e)
+    }
+  }
   if (!profileArn) {
-    const message = '缺少当前账号的 profileArn，无法开通 Overages。请先从本机 Kiro 登录后的 kiro-auth-token.json 导入该账号，或导入包含 profileArn 的数据。'
+    const message = '缺少该账号自己的 profileArn，无法直接开通 Overages。请导入包含 profileArn 的账号数据，或先在 Kiro 登录这个账号后再开通。'
     if (showToasts) window.UI?.toast.error(message)
     throw new Error(message)
   }
@@ -257,15 +383,41 @@ export async function enableOveragesForAccount(account: Account, options: Enable
     throw new Error('缺少 Access Token')
   }
 
-  if (showToasts) window.UI?.toast.info('正在开通 Overages...')
-  const result = await (window as any).__TAURI__.core.invoke('enable_overages', {
+  if (showToasts) window.UI?.toast.info(isDisabling ? '正在关闭 Overages...' : '正在开通 Overages...')
+  const invokeEnableOverages = () => (window as any).__TAURI__.core.invoke('enable_overages', {
     accessToken: currentAccount.credentials.accessToken,
     profileArn,
-    region: currentAccount.credentials.region || 'us-east-1'
+    region: currentAccount.credentials.region || 'us-east-1',
+    overageStatus
   })
 
+  let result = await invokeEnableOverages()
+
   if (!result.success) {
-    throw new Error(result.error || '开通 Overages 失败')
+    const error = new Error(result.error || '开通 Overages 失败')
+    if (isInvalidBearerError(error) && currentAccount.credentials.refreshToken) {
+      if (showToasts) window.UI?.toast.info('Token 已失效，刷新后重试开通...')
+      await refreshTokenOnly(currentAccount)
+      currentAccount = accountStore.getAccounts().find(a => a.id === account.id) || currentAccount
+      result = await invokeEnableOverages()
+    }
+
+    if (!result.success) {
+      if (isInvalidBearerError(result.error || '')) {
+        const latestLocalProfileArn = await getLatestLocalProfileArn()
+        const sameLocalAccount = await isSameAsLocalActiveAccount(currentAccount)
+        if (latestLocalProfileArn && latestLocalProfileArn === profileArn && !sameLocalAccount) {
+          accountStore.updateAccount(currentAccount.id, {
+            subscription: {
+              ...currentAccount.subscription,
+              profileArn: undefined
+            }
+          })
+          throw new Error('该账号的 profileArn 与 Token 不匹配，已清除错误缓存。请导入该账号自己的 profileArn，或先在 Kiro 登录这个账号后再开通。')
+        }
+      }
+      throw new Error(result.error || '开通 Overages 失败')
+    }
   }
 
   accountStore.updateAccount(currentAccount.id, {
@@ -408,7 +560,7 @@ export async function handleBatchCheck(selectedIds: Set<string>): Promise<void> 
               type: result.data.subscription_type,
               title: result.data.subscription_title,
               rawType: result.data.raw_type,
-              profileArn: account.subscription.profileArn,
+              profileArn: result.data.profile_arn || account.subscription.profileArn,
               upgradeCapability: result.data.upgrade_capability,
               overageCapability: result.data.overage_capability,
               overageStatus: result.data.overage_status || account.subscription.overageStatus,
@@ -499,6 +651,7 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
   let successCount = 0
   let failedCount = 0
   let completedCount = 0
+  let startedCount = 0
   const refreshProgress = openFloatingProgress({
     id: 'batch-refresh',
     title: '正在刷新账号',
@@ -506,22 +659,37 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
     detail: `0/${selectedAccounts.length} 已完成`
   })
 
-  // 并发控制：每次最多10个并发请求
-  const batchSize = 10
+  // 并发过高时首批请求会同时卡住，进度看起来像无响应；降低并发并给单账号加超时。
+  const batchSize = 4
   for (let i = 0; i < selectedAccounts.length; i += batchSize) {
     const batch = selectedAccounts.slice(i, i + batchSize)
     await Promise.all(batch.map(async (account) => {
+      startedCount++
+      refreshProgress.update({
+        completed: completedCount,
+        total: selectedAccounts.length,
+        detail: `正在处理 ${startedCount}/${selectedAccounts.length}，已完成 ${completedCount}`
+      })
+
       try {
-        await refreshAccount(account, true)
+        await withTimeout(
+          refreshAccount(account, true),
+          45_000,
+          `刷新超时: ${account.email || account.nickname || account.id}`
+        )
         successCount++
       } catch (error) {
+        accountStore.updateAccount(account.id, {
+          status: 'error',
+          lastError: formatUnknownError(error)
+        })
         failedCount++
       } finally {
         completedCount++
         refreshProgress.update({
           completed: completedCount,
           total: selectedAccounts.length,
-          detail: `成功 ${successCount} 个，失败 ${failedCount} 个`
+          detail: `成功 ${successCount} 个，失败 ${failedCount} 个，处理中 ${Math.max(0, startedCount - completedCount)} 个`
         })
       }
     }))
@@ -541,27 +709,31 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
 /**
  * 批量为选中账号开通 Overages
  */
-export async function handleBatchEnableOverages(selectedIds: Set<string>): Promise<void> {
+export async function handleBatchEnableOverages(selectedIds: Set<string>, overageStatus: 'ENABLED' | 'DISABLED' = 'ENABLED'): Promise<void> {
+  const isDisabling = overageStatus === 'DISABLED'
   const selectedAccounts = accountStore.getAccounts().filter(a => selectedIds.has(a.id))
 
   if (selectedAccounts.length === 0) {
-    window.UI?.toast.warning('请先选择要开通 Overages 的账号')
+    window.UI?.toast.warning(isDisabling ? '请先选择要取消 Overages 的账号' : '请先选择要开通 Overages 的账号')
     return
   }
 
   const targets = selectedAccounts.filter(account =>
     account.status === 'active' &&
     isOveragesEligible(account) &&
-    !isOveragesEnabled(account)
+    (isDisabling ? isOveragesEnabled(account) : !isOveragesEnabled(account))
   )
   const skippedCount = selectedAccounts.length - targets.length
 
   if (targets.length === 0) {
-    window.UI?.toast.info(skippedCount > 0 ? '选中账号无需开通 Overages' : '没有可开通的账号')
+    window.UI?.toast.info(skippedCount > 0 ? (isDisabling ? '选中账号无需取消 Overages' : '选中账号无需开通 Overages') : (isDisabling ? '没有可取消的账号' : '没有可开通的账号'))
     return
   }
 
-  const confirmed = window.confirm(`将为 ${targets.length} 个选中账号开通 Overages 超额配置。该功能仅适用于 Pro 及以上套餐，确定继续吗？`)
+  const confirmMsg = isDisabling
+    ? `将为 ${targets.length} 个选中账号取消 Overages 超额配置，确定继续吗？`
+    : `将为 ${targets.length} 个选中账号开通 Overages 超额配置。该功能仅适用于 Pro 及以上套餐，确定继续吗？`
+  const confirmed = window.confirm(confirmMsg)
   if (!confirmed) return
 
   let successCount = 0
@@ -569,7 +741,7 @@ export async function handleBatchEnableOverages(selectedIds: Set<string>): Promi
   let completedCount = 0
   const progress = openFloatingProgress({
     id: 'batch-enable-overages',
-    title: '正在批量开通 Overages',
+    title: isDisabling ? '正在批量取消 Overages' : '正在批量开通 Overages',
     total: targets.length,
     detail: `0/${targets.length} 已完成`
   })
@@ -582,7 +754,8 @@ export async function handleBatchEnableOverages(selectedIds: Set<string>): Promi
         const enabled = await enableOveragesForAccount(account, {
           confirm: false,
           showToasts: false,
-          refreshAfter: true
+          refreshAfter: true,
+          overageStatus
         })
         if (enabled) {
           successCount++

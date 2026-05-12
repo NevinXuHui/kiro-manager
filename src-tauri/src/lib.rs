@@ -8,6 +8,7 @@ mod machine_id;
 mod kiro_settings;
 mod proxy;
 mod chat;
+mod app_update;
 
 use tauri::{Manager, PhysicalPosition};
 
@@ -54,6 +55,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             auth::verify_account_credentials,
             auth::enable_overages,
+            auth::fetch_profile_arn,
             auth::get_latest_kiro_profile_arn,
             storage::get_local_active_account,
             models::get_account_models,
@@ -95,7 +97,9 @@ pub fn run() {
             proxy::commands::get_proxy_models,
             proxy::commands::get_proxy_logs,
             proxy::commands::reset_proxy_stats,
-            chat::send_chat_message
+            chat::send_chat_message,
+            app_update::check_for_updates,
+            app_update::download_update_asset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

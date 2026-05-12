@@ -72,11 +72,11 @@ export function renderAccountsView(
             ` : ''}
           </div>
           <div class="toolbar-batch-actions">
-            <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-check-btn" title="检查账号状态" ${selectedIds.size === 0 ? 'disabled' : ''}>
+            <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-check-btn" title="批量刷新Token" ${selectedIds.size === 0 ? 'disabled' : ''}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 0.25rem">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
-              检查
+              刷新Token
             </button>
             <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-refresh-btn" title="刷新账号信息" ${selectedIds.size === 0 ? 'disabled' : ''}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 0.25rem">
@@ -89,6 +89,12 @@ export function renderAccountsView(
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6M19 12l3 3-3 3M22 15h-7" />
               </svg>
               开通 $
+            </button>
+            <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-disable-overages-btn" title="为选中账号取消 Overages" ${selectedIds.size === 0 ? 'disabled' : ''}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 0.25rem">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6M5 12l-3 3 3 3M2 15h7" />
+              </svg>
+              取消 $
             </button>
             <button class="ui-btn ui-btn-sm ui-btn-danger" id="batch-delete-btn" title="删除选中账号" ${selectedIds.size === 0 ? 'disabled' : ''}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 0.25rem">

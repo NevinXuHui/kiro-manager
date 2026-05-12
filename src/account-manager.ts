@@ -16,6 +16,7 @@ import {
   handleAccountAction
 } from './services/account-service'
 import { autoRefreshService } from './services/auto-refresh-service'
+import { REPOSITORY_URL, updateService, type UpdateInfo } from './services/update-service'
 import logoSvg from './assets/logo.svg'
 import kiroIconSvg from './assets/kiro-icon.svg'
 
@@ -206,6 +207,12 @@ export class AccountManager {
               </svg>
               <span>设置</span>
             </button>
+            <button class="sidebar-link" data-view="about">
+              <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>关于</span>
+            </button>
           </nav>
           <div class="sidebar-footer">
             <div class="sidebar-footer-tools">
@@ -292,6 +299,8 @@ export class AccountManager {
       this.renderChatView(contentArea)
     } else if (activeView === 'settings') {
       this.renderSettingsView(contentArea)
+    } else if (activeView === 'about') {
+      this.renderAboutView(contentArea)
     }
   }
 
@@ -310,6 +319,200 @@ export class AccountManager {
     const html = await renderSettingsView()
     container.innerHTML = html
     attachSettingsEvents(container)
+  }
+
+  private renderAboutView(container: Element) {
+    container.innerHTML = `
+      <div style="max-width: 640px; margin: 0 auto; padding: 40px 24px;">
+        <!-- Logo + 名称 -->
+        <div style="text-align: center; margin-bottom: 40px;">
+          <div style="width: 80px; height: 80px; margin: 0 auto 16px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="white" stroke-width="1.5">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h1 style="font-size: 28px; font-weight: 800; margin-bottom: 4px; background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Kiro 账号管理器</h1>
+          <p style="color: var(--text-tertiary); font-size: 13px; letter-spacing: 1px;">VERSION 2.0.5</p>
+        </div>
+
+        <!-- 简介 -->
+        <p style="text-align: center; color: var(--text-secondary); font-size: 14px; line-height: 1.8; margin-bottom: 32px; padding: 0 20px;">
+          一站式 Kiro 账号管理工具，支持批量导入、刷新验活、一键切换、Overages 超额管理、API 反向代理等功能。
+        </p>
+
+        <!-- 技术栈 -->
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 32px;">
+          <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: rgba(99, 102, 241, 0.1); color: #6366f1; border: 1px solid rgba(99, 102, 241, 0.2);">Tauri 2.0</span>
+          <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2);">TypeScript</span>
+          <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: rgba(234, 88, 12, 0.1); color: #ea580c; border: 1px solid rgba(234, 88, 12, 0.2);">Rust</span>
+          <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">Vite</span>
+          <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.2);">Tailwind</span>
+        </div>
+
+        <!-- 信息卡片 -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+          <!-- GitHub -->
+          <a href="#" id="about-github-link" style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: inherit; transition: all 0.2s; cursor: pointer;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: #24292e; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">GitHub</div>
+              <div style="font-size: 11px; color: var(--text-tertiary);">NeuraLabHQ/kiro-manager</div>
+            </div>
+          </a>
+
+          <!-- QQ 群 -->
+          <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #12b7f5, #0099ff); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12.003 2c-5.523 0-9.997 4.477-9.997 10 0 2.136.67 4.116 1.81 5.74L2 22l4.453-1.764A9.95 9.95 0 0012.003 22c5.523 0 9.997-4.477 9.997-10s-4.474-10-9.997-10z"/></svg>
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">QQ 交流群</div>
+              <div style="font-size: 14px; font-weight: 700; color: var(--primary); user-select: all;">1090339570</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 检查更新 -->
+        <div style="text-align: center; margin-top: 32px;">
+          <button class="ui-btn ui-btn-primary" id="check-update-btn" style="padding: 10px 32px; border-radius: 10px; font-weight: 600;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: -2px;">
+              <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+            </svg>
+            检查更新
+          </button>
+        </div>
+
+        <!-- 底部 -->
+        <div style="text-align: center; margin-top: 32px; color: var(--text-tertiary); font-size: 12px;">
+          Built with Tauri + Rust + TypeScript
+        </div>
+      </div>
+    `
+
+    container.querySelector('#about-github-link')?.addEventListener('click', (e) => {
+      e.preventDefault()
+      updateService.openRepository().catch((error) => {
+        console.error('[关于] 打开仓库失败:', error)
+        window.UI?.toast.error('打开仓库失败: ' + (error as Error).message)
+      })
+    })
+
+    const checkUpdateBtn = container.querySelector('#check-update-btn')
+    if (checkUpdateBtn) {
+      checkUpdateBtn.addEventListener('click', () => this.handleCheckUpdate(checkUpdateBtn as HTMLButtonElement))
+    }
+  }
+
+  private async handleCheckUpdate(button: HTMLButtonElement) {
+    const originalHtml = button.innerHTML
+    button.disabled = true
+    button.innerHTML = '正在检查...'
+    window.UI?.toast.info('正在检查更新...')
+
+    try {
+      const updateInfo = await updateService.checkForUpdates()
+      this.showUpdateModal(updateInfo)
+    } catch (error) {
+      console.error('[更新] 检查失败:', error)
+      window.UI?.toast.error('检查更新失败: ' + (error as Error).message)
+    } finally {
+      button.disabled = false
+      button.innerHTML = originalHtml
+    }
+  }
+
+  private showUpdateModal(updateInfo: UpdateInfo) {
+    const asset = updateService.pickInstallAsset(updateInfo.assets)
+    const releaseNotes = this.formatReleaseNotes(updateInfo.releaseNotes)
+    const statusTitle = updateInfo.hasUpdate ? '发现新版本' : '当前已是最新版本'
+    const statusDesc = updateInfo.hasUpdate
+      ? `当前版本 ${this.escapeHtml(updateInfo.currentVersion)}，最新版本 ${this.escapeHtml(updateInfo.latestVersion)}`
+      : `当前版本 ${this.escapeHtml(updateInfo.currentVersion)}，无需更新`
+    const assetHtml = asset
+      ? `
+        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-sidebar);">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">${this.escapeHtml(asset.name)}</div>
+          <div style="font-size: 12px; color: var(--text-tertiary);">${updateService.formatAssetSize(asset.size)}</div>
+        </div>
+      `
+      : '<div style="font-size: 13px; color: var(--text-tertiary);">该版本没有可下载的安装包资产。</div>'
+
+    window.downloadKiroUpdate = async () => {
+      if (!asset) return
+
+      const downloadButton = document.querySelector('#download-update-btn') as HTMLButtonElement | null
+      const originalText = downloadButton?.textContent || '下载并安装'
+      if (downloadButton) {
+        downloadButton.disabled = true
+        downloadButton.textContent = '正在下载...'
+      }
+
+      try {
+        const filePath = await updateService.downloadUpdateAsset(asset)
+        window.UI?.toast.success('安装包已下载并启动: ' + filePath)
+      } catch (error) {
+        console.error('[更新] 下载失败:', error)
+        window.UI?.toast.error('下载更新失败: ' + (error as Error).message)
+      } finally {
+        if (downloadButton) {
+          downloadButton.disabled = false
+          downloadButton.textContent = originalText
+        }
+      }
+    }
+
+    window.UI?.modal.open({
+      title: '软件更新',
+      size: 'lg',
+      html: `
+        <div class="modal-form">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px; border-radius: 12px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.16);">
+              <div style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">${statusTitle}</div>
+              <div style="font-size: 13px; color: var(--text-secondary);">${statusDesc}</div>
+              <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;">更新源：${this.escapeHtml(REPOSITORY_URL)}</div>
+            </div>
+
+            ${updateInfo.hasUpdate ? assetHtml : ''}
+
+            <div>
+              <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">更新说明</div>
+              <div style="max-height: 220px; overflow: auto; white-space: pre-wrap; line-height: 1.7; padding: 12px; border-radius: 10px; background: var(--bg-sidebar); border: 1px solid var(--border-color); color: var(--text-secondary); font-size: 12px;">${releaseNotes}</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+              <button class="ui-btn ui-btn-secondary" onclick="window.UI?.modal.closeAll()">关闭</button>
+              ${updateInfo.hasUpdate && asset ? '<button class="ui-btn ui-btn-primary" id="download-update-btn" onclick="window.downloadKiroUpdate()">下载并安装</button>' : ''}
+            </div>
+          </div>
+        </div>
+      `,
+      onClose: () => {
+        delete window.downloadKiroUpdate
+      }
+    })
+  }
+
+  private formatReleaseNotes(notes: string) {
+    const trimmed = notes.trim()
+    if (!trimmed) return '暂无更新说明'
+
+    const shortNotes = trimmed.length > 1600
+      ? `${trimmed.slice(0, 1600)}\n\n...`
+      : trimmed
+
+    return this.escapeHtml(shortNotes)
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
   }
 
   private renderMachineIdView(container: Element) {
@@ -516,6 +719,7 @@ declare global {
     confirmDeleteAccount?: () => void
     cancelBatchDelete?: () => void
     confirmBatchDelete?: () => void
+    downloadKiroUpdate?: () => void
     
     // Kiro 设置页面函数
     selectAgentAutonomy?: (value: string) => void

@@ -16,8 +16,8 @@
 
 .models-dialog-content {
   max-width: 100%;
-  width: min(920px, calc(100vw - 96px));
-  max-height: min(660px, calc(100vh - 160px));
+  width: min(1000px, calc(100vw - 64px));
+  max-height: min(700px, calc(100vh - 120px));
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 16px;
@@ -98,7 +98,7 @@
 /* 模型列表 */
 .models-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -119,7 +119,7 @@
   }
 
   .models-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 }
 

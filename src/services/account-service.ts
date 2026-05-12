@@ -1,7 +1,7 @@
 import type { Account } from '../types'
 import { accountStore } from '../store'
 import { showAccountDetailDialog } from '../dialogs/detail-dialog'
-import { showEditAccountDialog } from '../dialogs/edit-account-dialog'
+// import { showEditAccountDialog } from '../dialogs/edit-account-dialog'
 import { showModelsDialog } from '../dialogs/models-dialog'
 import { refreshAccount, deleteAccount, switchToAccount, enableOveragesForAccount } from '../actions/account-actions'
 
@@ -119,7 +119,7 @@ export async function autoImportCurrentAccount(
           overageStatus: result.data.overage_status,
           managementTarget: result.data.management_target,
           daysRemaining: result.data.days_remaining,
-          profileArn: profile_arn
+          profileArn: result.data.profile_arn || profile_arn
         },
         usage: {
           current: result.data.usage.current,
@@ -190,8 +190,13 @@ export async function handleAccountAction(
       case 'models':
         showModelsDialog(account)
         break
-      case 'enable-overages':
-        await enableOveragesForAccount(account)
+      case 'enable-overages': {
+        const isEnabled = account.subscription.overageStatus === 'ENABLED' || account.usage.resourceDetail?.overageEnabled === true
+        await enableOveragesForAccount(account, { overageStatus: isEnabled ? 'DISABLED' : 'ENABLED' })
+        break
+      }
+      case 'disable-overages':
+        await enableOveragesForAccount(account, { overageStatus: 'DISABLED' })
         break
       case 'switch':
         await switchToAccount(account)
@@ -243,8 +248,8 @@ export async function handleAccountAction(
         navigator.clipboard.writeText(JSON.stringify(account.credentials, null, 2))
         window.UI?.toast.success('凭证已复制到剪贴板')
         break
-      case 'edit':
-        showEditAccountDialog(account)
+      case 'refresh-token':
+        await refreshAccount(account, false)
         break
       case 'delete':
         deleteAccount(accountId, (id) => selectedIds.delete(id))
