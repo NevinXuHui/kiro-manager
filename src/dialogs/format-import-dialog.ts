@@ -1,5 +1,6 @@
 import { accountStore } from '../store'
 import { openFloatingProgress } from '../utils/floating-progress'
+import { smartParseFormatImportAccounts } from '../utils/format-import-parser'
 import type { AccountSubscription } from '../types'
 
 interface ParsedAccount {
@@ -314,7 +315,7 @@ export function showFormatImportDialog(): void {
         <div class="form-section">
           <label class="form-label">粘贴数据</label>
           <textarea class="form-input form-textarea" id="format-import-input" rows="8"
-            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- 其他工具导出的账号数据&#10;&#10;粘贴后点击「解析」自动提取关键参数"></textarea>
+            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- rt: xxx / refreshToken: xxx&#10;- RT----social----google----邮箱 这类分隔文本&#10;&#10;粘贴后点击「解析」自动提取关键参数"></textarea>
         </div>
         <div class="form-section">
           <button class="ui-btn ui-btn-secondary" id="format-parse-btn" style="width: 100%;">
@@ -351,7 +352,7 @@ export function showFormatImportDialog(): void {
       return
     }
 
-    parsedAccounts = smartParseAccounts(input)
+    parsedAccounts = smartParseFormatImportAccounts(input)
     if (parsedAccounts.length === 0) {
       window.UI?.toast.error('未能从数据中提取到有效账号')
       return

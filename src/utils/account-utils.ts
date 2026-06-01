@@ -62,6 +62,12 @@ export function formatTokenExpiry(expiresAt: number): string {
   }
 }
 
+export function buildExportFilename(accountCount: number, format: 'json' | 'txt' | 'csv', date = new Date()): string {
+  const safeCount = Math.max(0, Math.floor(accountCount))
+  const day = date.toISOString().slice(0, 10)
+  return `kiro-accounts-${safeCount}-${day}.${format}`
+}
+
 /**
  * 生成导出内容
  */

@@ -1,6 +1,7 @@
 // 导出对话框
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
-import { generateExportContent } from '../utils/account-utils'
+import { buildExportFilename, generateExportContent } from '../utils/account-utils'
 
 /**
  * 显示导出对话框
@@ -119,9 +120,9 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
         return
       }
 
-      const extensions = { json: 'json', txt: 'txt', csv: 'csv' }
+      const extensions: Record<'json' | 'txt' | 'csv', 'json' | 'txt' | 'csv'> = { json: 'json', txt: 'txt', csv: 'csv' }
       const ext = extensions[selectedFormat]
-      const defaultFilename = `kiro-accounts-${new Date().toISOString().slice(0, 10)}.${ext}`
+      const defaultFilename = buildExportFilename(accounts.length, ext)
       console.log('[导出] 默认文件名:', defaultFilename)
 
       // 使用 Tauri 的 save 对话框
@@ -143,6 +144,12 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
         console.log('[导出] 文件写入成功')
         
         window.UI?.toast.success(`已导出 ${accounts.length} 个账号到: ${filePath}`)
+        try {
+          await revealItemInDir(filePath)
+        } catch (openError) {
+          console.warn('[导出] 打开导出目录失败:', openError)
+          window.UI?.toast.warning('文件已导出，但打开目录失败')
+        }
         window.UI?.modal.close(modal)
         delete window.closeExportDialog
         delete window.submitExport

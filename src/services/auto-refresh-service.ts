@@ -11,6 +11,20 @@ interface AutoRefreshConfig {
   concurrency: number // 并发刷新数量
 }
 
+export function shouldRefreshBeforeNextCheck(
+  expiresAt: number | undefined,
+  now: number,
+  intervalMinutes: number
+): boolean {
+  if (!expiresAt) return false
+
+  const minLookahead = 10 * 60 * 1000
+  const intervalLookahead = intervalMinutes * 60 * 1000 + 60 * 1000
+  const lookaheadMs = Math.max(minLookahead, intervalLookahead)
+
+  return expiresAt - now < lookaheadMs
+}
+
 class AutoRefreshService {
   private config: AutoRefreshConfig = {
     enabled: false,
@@ -231,10 +245,10 @@ class AutoRefreshService {
 
       const accounts = accountStore.getAccounts()
       const now = Date.now()
-      const threshold = 10 * 60 * 1000 // 10分钟
+      const lookaheadMs = Math.max(10 * 60 * 1000, this.config.interval * 60 * 1000 + 60 * 1000)
 
       console.log(`[自动刷新] 账号总数: ${accounts.length}`)
-      console.log(`[自动刷新] 过期阈值: 10 分钟`)
+      console.log(`[自动刷新] 提前刷新窗口: ${Math.ceil(lookaheadMs / 60000)} 分钟`)
       console.log(`[自动刷新] 刷新模式: ${this.config.syncInfo ? '完整刷新' : '仅刷新 Token'}`)
 
       let refreshCount = 0
@@ -254,8 +268,7 @@ class AutoRefreshService {
           return false
         }
         
-        const timeLeft = account.credentials.expiresAt - now
-        if (timeLeft >= threshold) {
+        if (!shouldRefreshBeforeNextCheck(account.credentials.expiresAt, now, this.config.interval)) {
           normalCount++
           return false
         }
