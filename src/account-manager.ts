@@ -332,7 +332,7 @@ export class AccountManager {
             </svg>
           </div>
           <h1 style="font-size: 28px; font-weight: 800; margin-bottom: 4px; background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Kiro 账号管理器</h1>
-          <p style="color: var(--text-tertiary); font-size: 13px; letter-spacing: 1px;">VERSION 2.0.5</p>
+          <p style="color: var(--text-tertiary); font-size: 13px; letter-spacing: 1px;">VERSION 2.0.6</p>
         </div>
 
         <!-- 简介 -->
