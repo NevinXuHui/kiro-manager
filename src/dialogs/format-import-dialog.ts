@@ -317,7 +317,7 @@ export function showFormatImportDialog(): void {
         <div class="form-section">
           <label class="form-label">粘贴数据或文件路径</label>
           <textarea class="form-input form-textarea" id="format-import-input" rows="8"
-            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- rt: xxx / refreshToken: xxx&#10;- RT----social----google----邮箱 这类分隔文本&#10;- 直接粘贴文件路径（如：/Users/xxx/xxx.json）&#10;&#10;粘贴后点击「解析」自动提取关键参数"></textarea>
+            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- rt: xxx / refreshToken: xxx&#10;- RT----social----google----邮箱 这类分隔文本&#10;- 直接粘贴文件路径（支持多个，每行一个）&#10;  示例：/Users/xxx/file1.json&#10;        /Users/xxx/file2.json&#10;&#10;或点击「选择文件」按钮选择多个文件"></textarea>
         </div>
         <div class="form-section" style="display: flex; gap: 8px;">
           <button class="ui-btn ui-btn-secondary" id="format-select-file-btn" style="flex: 1;">
@@ -355,16 +355,20 @@ export function showFormatImportDialog(): void {
   selectFileBtn?.addEventListener('click', async () => {
     try {
       const filePath = await open({
-        multiple: false,
+        multiple: true,
         filters: [{
           name: 'JSON',
           extensions: ['json', 'txt']
         }]
       })
 
-      if (filePath && typeof filePath === 'string') {
-        inputTextarea.value = filePath
-        window.UI?.toast.success('已选择文件，点击「解析数据」开始解析')
+      if (filePath) {
+        // 支持单个文件或多个文件
+        const paths = Array.isArray(filePath) ? filePath : [filePath]
+        if (paths.length > 0) {
+          inputTextarea.value = paths.join('\n')
+          window.UI?.toast.success(`已选择 ${paths.length} 个文件，点击「解析数据」开始解析`)
+        }
       }
     } catch (error) {
       console.error('选择文件失败:', error)
@@ -379,22 +383,55 @@ export function showFormatImportDialog(): void {
       return
     }
 
-    let content = input
+    let allContent = ''
+    const lines = input.split('\n').map(line => line.trim()).filter(Boolean)
 
-    // 检测是否为文件路径
-    if (isFilePath(input)) {
+    // 检测是否有文件路径
+    const filePaths = lines.filter(line => isFilePath(line))
+
+    if (filePaths.length > 0) {
       try {
-        window.UI?.toast.info('正在读取文件...')
-        content = await readTextFile(input)
-        window.UI?.toast.success('文件读取成功')
+        window.UI?.toast.info(`正在读取 ${filePaths.length} 个文件...`)
+
+        // 读取所有文件
+        const fileContents = await Promise.all(
+          filePaths.map(async (path) => {
+            try {
+              return await readTextFile(path)
+            } catch (error) {
+              console.error(`读取文件失败: ${path}`, error)
+              window.UI?.toast.error(`读取文件失败: ${path}`)
+              return ''
+            }
+          })
+        )
+
+        // 合并所有文件内容
+        allContent = fileContents.filter(Boolean).join('\n')
+
+        // 如果还有非文件路径的内容，也加入
+        const nonFilePaths = lines.filter(line => !isFilePath(line))
+        if (nonFilePaths.length > 0) {
+          allContent += '\n' + nonFilePaths.join('\n')
+        }
+
+        if (!allContent) {
+          window.UI?.toast.error('所有文件读取失败')
+          return
+        }
+
+        window.UI?.toast.success(`成功读取 ${filePaths.length} 个文件`)
       } catch (error) {
         console.error('读取文件失败:', error)
         window.UI?.toast.error(`读取文件失败: ${(error as Error).message}`)
         return
       }
+    } else {
+      // 没有文件路径，直接使用输入内容
+      allContent = input
     }
 
-    parsedAccounts = smartParseFormatImportAccounts(content)
+    parsedAccounts = smartParseFormatImportAccounts(allContent)
     if (parsedAccounts.length === 0) {
       window.UI?.toast.error('未能从数据中提取到有效账号')
       return
