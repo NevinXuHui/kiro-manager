@@ -2,6 +2,8 @@ import { accountStore } from '../store'
 import { openFloatingProgress } from '../utils/floating-progress'
 import { smartParseFormatImportAccounts } from '../utils/format-import-parser'
 import type { AccountSubscription } from '../types'
+import { readTextFile } from '@tauri-apps/plugin-fs'
+import { open } from '@tauri-apps/plugin-dialog'
 
 interface ParsedAccount {
   email: string
@@ -313,12 +315,15 @@ export function showFormatImportDialog(): void {
     html: `
       <div class="modal-form">
         <div class="form-section">
-          <label class="form-label">粘贴数据</label>
+          <label class="form-label">粘贴数据或文件路径</label>
           <textarea class="form-input form-textarea" id="format-import-input" rows="8"
-            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- rt: xxx / refreshToken: xxx&#10;- RT----social----google----邮箱 这类分隔文本&#10;&#10;粘贴后点击「解析」自动提取关键参数"></textarea>
+            placeholder="支持多种格式自动识别：&#10;- 本应用导出的 JSON&#10;- 扁平格式 JSON（含 refreshToken/clientId 等）&#10;- rt: xxx / refreshToken: xxx&#10;- RT----social----google----邮箱 这类分隔文本&#10;- 直接粘贴文件路径（如：/Users/xxx/xxx.json）&#10;&#10;粘贴后点击「解析」自动提取关键参数"></textarea>
         </div>
-        <div class="form-section">
-          <button class="ui-btn ui-btn-secondary" id="format-parse-btn" style="width: 100%;">
+        <div class="form-section" style="display: flex; gap: 8px;">
+          <button class="ui-btn ui-btn-secondary" id="format-select-file-btn" style="flex: 1;">
+            选择文件
+          </button>
+          <button class="ui-btn ui-btn-secondary" id="format-parse-btn" style="flex: 1;">
             解析数据
           </button>
         </div>
@@ -341,18 +346,55 @@ export function showFormatImportDialog(): void {
     closable: true
   })
 
+  const selectFileBtn = document.getElementById('format-select-file-btn')
   const parseBtn = document.getElementById('format-parse-btn')
   const importBtn = document.getElementById('format-dialog-import-btn') as HTMLButtonElement
   const cancelBtn = document.getElementById('format-cancel-btn')
+  const inputTextarea = document.getElementById('format-import-input') as HTMLTextAreaElement
 
-  parseBtn?.addEventListener('click', () => {
-    const input = (document.getElementById('format-import-input') as HTMLTextAreaElement)?.value.trim()
+  selectFileBtn?.addEventListener('click', async () => {
+    try {
+      const filePath = await open({
+        multiple: false,
+        filters: [{
+          name: 'JSON',
+          extensions: ['json', 'txt']
+        }]
+      })
+
+      if (filePath && typeof filePath === 'string') {
+        inputTextarea.value = filePath
+        window.UI?.toast.success('已选择文件，点击「解析数据」开始解析')
+      }
+    } catch (error) {
+      console.error('选择文件失败:', error)
+      window.UI?.toast.error('选择文件失败')
+    }
+  })
+
+  parseBtn?.addEventListener('click', async () => {
+    const input = inputTextarea.value.trim()
     if (!input) {
-      window.UI?.toast.error('请先粘贴数据')
+      window.UI?.toast.error('请先粘贴数据或选择文件')
       return
     }
 
-    parsedAccounts = smartParseFormatImportAccounts(input)
+    let content = input
+
+    // 检测是否为文件路径
+    if (isFilePath(input)) {
+      try {
+        window.UI?.toast.info('正在读取文件...')
+        content = await readTextFile(input)
+        window.UI?.toast.success('文件读取成功')
+      } catch (error) {
+        console.error('读取文件失败:', error)
+        window.UI?.toast.error(`读取文件失败: ${(error as Error).message}`)
+        return
+      }
+    }
+
+    parsedAccounts = smartParseFormatImportAccounts(content)
     if (parsedAccounts.length === 0) {
       window.UI?.toast.error('未能从数据中提取到有效账号')
       return
@@ -371,6 +413,19 @@ export function showFormatImportDialog(): void {
     if (parsedAccounts.length === 0) return
     await doFormatImport(parsedAccounts, modal)
   })
+}
+
+/**
+ * 判断输入是否为文件路径
+ */
+function isFilePath(input: string): boolean {
+  // 检测常见的文件路径格式
+  // Unix/Mac 路径: /path/to/file.json
+  // Windows 路径: C:\path\to\file.json 或 C:/path/to/file.json
+  const unixPath = /^(\/|\.\/|\.\.\/)[^\s]+\.(json|txt)$/i
+  const windowsPath = /^[a-zA-Z]:[\\\/][^\s]+\.(json|txt)$/i
+
+  return unixPath.test(input) || windowsPath.test(input)
 }
 
 function renderPreview(accounts: ParsedAccount[]) {
@@ -441,24 +496,71 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   const importBtn = document.getElementById('format-dialog-import-btn') as HTMLButtonElement
   const importText = document.getElementById('format-dialog-import-text')
   importBtn.disabled = true
+  importText!.textContent = '检查重复...'
+
+  // 🔍 检查重复账号
+  const existingAccounts = accountStore.getAccounts()
+  const duplicates: { index: number; email: string; refreshToken: string }[] = []
+  const uniqueAccounts: typeof accounts = []
+
+  accounts.forEach((account, index) => {
+    // 检查是否存在相同的 refreshToken 或 email
+    const isDuplicate = existingAccounts.some(existing => {
+      const sameRefreshToken = account.refreshToken && existing.credentials.refreshToken === account.refreshToken
+      const sameEmail = account.email && existing.email === account.email
+      return sameRefreshToken || sameEmail
+    })
+
+    if (isDuplicate) {
+      duplicates.push({ index: index + 1, email: account.email, refreshToken: account.refreshToken })
+    } else {
+      uniqueAccounts.push(account)
+    }
+  })
+
+  // 如果有重复，提示用户
+  if (duplicates.length > 0) {
+    const confirmImport = confirm(
+      `检测到 ${duplicates.length} 个重复账号（已存在相同的邮箱或 refreshToken）。\n\n` +
+      `- 重复账号: ${duplicates.length} 个（将跳过）\n` +
+      `- 新账号: ${uniqueAccounts.length} 个（将导入）\n\n` +
+      `是否继续导入新账号？`
+    )
+
+    if (!confirmImport) {
+      importBtn.disabled = false
+      importText!.textContent = '导入'
+      return
+    }
+  }
+
+  // 如果没有新账号可导入
+  if (uniqueAccounts.length === 0) {
+    window.UI?.toast.warning('所有账号都已存在，无需导入')
+    importBtn.disabled = false
+    importText!.textContent = '导入'
+    return
+  }
+
   importText!.textContent = '导入中...'
 
   let successCount = 0
   let failedCount = 0
+  let skippedCount = duplicates.length
   const errors: string[] = []
   let completedCount = 0
 
   const importProgress = openFloatingProgress({
     id: 'format-import',
     title: '格式化导入',
-    total: accounts.length,
-    detail: `0/${accounts.length} 已完成`
+    total: uniqueAccounts.length,
+    detail: `0/${uniqueAccounts.length} 已完成 (跳过重复 ${skippedCount} 个)`
   })
 
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
 
   const CONCURRENCY = 10
-  const queue = accounts.map((a, i) => ({ account: a, index: i }))
+  const queue = uniqueAccounts.map((a, i) => ({ account: a, index: i }))
 
   function addDirectAccount(account: ParsedAccount, index: number, fallbackStatus: ParsedAccount['status'] = 'unknown') {
     const now = Date.now()
@@ -612,8 +714,8 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
       completedCount++
       importProgress.update({
         completed: completedCount,
-        total: accounts.length,
-        detail: `成功 ${successCount}，失败 ${failedCount}`
+        total: uniqueAccounts.length,
+        detail: `成功 ${successCount}，失败 ${failedCount}，跳过重复 ${skippedCount}`
       })
     }
   }
@@ -632,10 +734,18 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   await Promise.all(workers)
 
   if (successCount > 0) {
-    window.UI?.toast.success(`成功导入 ${successCount} 个账号`)
+    const msg = skippedCount > 0
+      ? `成功导入 ${successCount} 个账号，跳过重复 ${skippedCount} 个`
+      : `成功导入 ${successCount} 个账号`
+    window.UI?.toast.success(msg)
   }
+
+  const finishMsg = skippedCount > 0
+    ? `导入完成：成功 ${successCount}，失败 ${failedCount}，跳过重复 ${skippedCount}`
+    : `导入完成：成功 ${successCount}，失败 ${failedCount}`
+
   importProgress.finish(
-    `格式化导入完成：成功 ${successCount}，失败 ${failedCount}`,
+    finishMsg,
     failedCount === 0 ? 'success' : 'warning'
   )
 
