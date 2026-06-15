@@ -57,3 +57,28 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Build artifacts and installers
+*.dmg
+*.exe
+*.app
+*.deb
+*.rpm
+*.AppImage
+
+# Account data files
+accounts.json
+accounts*.json
+*.json22
+
+# Python scripts (temporary tools)
+*.py
+
+# Temporary directories
+.lh/
+accounts_split/
+accounts_split_remaining/
+accounts_split_remaining_*/
+
+# Guide directory (contains large binaries)
+guide/
