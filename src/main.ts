@@ -5,9 +5,14 @@ import { AccountManager } from './account-manager'
 const app = document.getElementById('app')
 if (app) {
   const manager = new AccountManager(app)
-  // 先初始化加载数据，再渲染界面
-  manager.init().then(() => {
-    manager.render()
+
+  // 🚀 优化启动流程：先渲染骨架屏，再后台加载数据
+  // 1. 立即渲染界面框架（无账号数据）
+  manager.render()
+
+  // 2. 异步加载账号数据
+  manager.init().catch(error => {
+    console.error('[启动] 初始化失败:', error)
   })
 }
 
@@ -15,9 +20,9 @@ if (app) {
 if (window.__TAURI__) {
   const { getCurrentWindow } = window.__TAURI__.window
   const { invoke } = window.__TAURI__.core
-  
+
   let saveTimeout: number | null = null
-  
+
   // 监听窗口移动
   const currentWindow = getCurrentWindow()
   currentWindow.listen('tauri://move', async () => {
@@ -25,7 +30,7 @@ if (window.__TAURI__) {
     if (saveTimeout) {
       clearTimeout(saveTimeout)
     }
-    
+
     saveTimeout = window.setTimeout(async () => {
       try {
         const position = await currentWindow.outerPosition()

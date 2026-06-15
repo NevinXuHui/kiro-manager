@@ -827,10 +827,10 @@ export function handleBatchDelete(selectedIds: Set<string>, onClear: () => void)
     window.UI?.modal.close(modal)
     delete (window as any).cancelBatchDelete
     delete (window as any).confirmBatchDelete
-    
-    selectedIds.forEach(id => {
-      accountStore.deleteAccount(id)
-    })
+
+    // 🚀 性能优化：批量删除，只保存一次文件
+    const idsToDelete = Array.from(selectedIds)
+    accountStore.batchDeleteAccounts(idsToDelete)
     onClear()
     window.UI?.toast.success(`已删除 ${selectedCount} 个账号`)
   }

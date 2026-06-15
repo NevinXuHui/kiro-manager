@@ -161,7 +161,25 @@ class AccountStore {
   deleteAccount(id: string) {
     this.accounts = this.accounts.filter(a => a.id !== id)
     this.saveAccounts()
-    this.notify()
+    // 触发账号删除事件，避免全量重渲染
+    this.notifyAccountDelete(id)
+  }
+
+  // 批量删除账号（性能优化：一次性删除，只保存一次）
+  batchDeleteAccounts(ids: string[]) {
+    console.log(`[Store] 批量删除 ${ids.length} 个账号`)
+    this.accounts = this.accounts.filter(a => !ids.includes(a.id))
+    this.saveAccounts()
+    // 触发批量删除事件
+    const event = new CustomEvent('accounts-batch-deleted', { detail: { accountIds: ids } })
+    window.dispatchEvent(event)
+  }
+
+  // 单个账号删除通知
+  private notifyAccountDelete(accountId: string) {
+    // 触发账号删除事件，让UI层直接移除DOM节点
+    const event = new CustomEvent('account-deleted', { detail: { accountId } })
+    window.dispatchEvent(event)
   }
 
   // 单个账号更新通知

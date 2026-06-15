@@ -11,6 +11,7 @@ import { attachAccountsEvents } from './handlers/accounts-events'
 import { attachAccountCardEvents } from './handlers/account-card-events'
 import { toggleSelection, updateSelectionUI } from './managers/selection-manager'
 import { updateAccountList } from './managers/filter-manager'
+import { initPaginatedAccountList, updatePaginatedAccountList } from './managers/pagination-manager'
 import {
   autoImportCurrentAccount,
   handleAccountAction
@@ -33,10 +34,10 @@ export class AccountManager {
 
   async init() {
     await accountStore.loadAccounts()
-    
+
     // 同步本地激活账号
     await accountStore.syncActiveAccountFromLocal()
-    
+
     this.unsubscribe = accountStore.subscribe(() => {
       this.renderContent()
       // 账号数据或激活状态变化时更新当前账号显示
@@ -45,6 +46,12 @@ export class AccountManager {
 
     // 监听单个账号更新事件
     window.addEventListener('account-updated', this.handleAccountUpdate.bind(this))
+
+    // 监听账号删除事件（优化性能，避免全量重渲染）
+    window.addEventListener('account-deleted', this.handleAccountDelete.bind(this))
+
+    // 监听批量删除事件（性能优化）
+    window.addEventListener('accounts-batch-deleted', this.handleBatchDelete.bind(this))
 
     // 启动时自动导入当前活跃账号
     await this.autoImportCurrentAccount()
@@ -55,7 +62,7 @@ export class AccountManager {
     if (config.enabled) {
       autoRefreshService.start()
     }
-    
+
     // 定期同步本地激活账号（每5秒检查一次）
     this.syncInterval = setInterval(() => {
       accountStore.syncActiveAccountFromLocal()
@@ -83,12 +90,53 @@ export class AccountManager {
     renderCurrentAccount(this.container, account)
   }
 
+  // 处理批量账号删除（性能优化：一次性移除所有DOM节点）
+  private handleBatchDelete(event: Event) {
+    const customEvent = event as CustomEvent<{ accountIds: string[] }>
+    const { accountIds } = customEvent.detail
+
+    console.log(`[批量删除] 开始删除 ${accountIds.length} 个账号`)
+
+    // 只在账号管理视图时处理
+    const activeView = this.container.querySelector('.sidebar-link.active')?.getAttribute('data-view')
+    if (activeView !== 'accounts') return
+
+    // 批量移除DOM节点（使用 requestAnimationFrame 优化性能）
+    requestAnimationFrame(() => {
+      accountIds.forEach(accountId => {
+        const cardElement = this.container.querySelector(`[data-account-id="${accountId}"]`)
+        if (cardElement) {
+          cardElement.remove()
+        }
+
+        // 从选中列表中移除
+        this.selectedIds.delete(accountId)
+      })
+
+      console.log(`[批量删除] 已移除 ${accountIds.length} 个DOM节点`)
+
+      // 更新选中状态UI
+      this.updateSelectionUI()
+
+      // 检查是否还有账号，如果没有显示空状态
+      const accountGrid = this.container.querySelector('#account-grid')
+      if (accountGrid && accountGrid.children.length === 0) {
+        // 重新渲染以显示空状态
+        this.renderContent()
+      }
+    })
+  }
+
   public destroy() {
     if (this.unsubscribe) {
       this.unsubscribe()
     }
     // 移除账号更新监听器
     window.removeEventListener('account-updated', this.handleAccountUpdate.bind(this))
+    // 移除账号删除监听器
+    window.removeEventListener('account-deleted', this.handleAccountDelete.bind(this))
+    // 移除批量删除监听器
+    window.removeEventListener('accounts-batch-deleted', this.handleBatchDelete.bind(this))
     // 停止自动刷新服务
     autoRefreshService.stop()
     // 清除同步定时器
@@ -102,44 +150,85 @@ export class AccountManager {
   private handleAccountUpdate(event: Event) {
     const customEvent = event as CustomEvent<{ accountId: string }>
     const { accountId } = customEvent.detail
-    
+
     // 只在账号管理视图时更新
     const activeView = this.container.querySelector('.sidebar-link.active')?.getAttribute('data-view')
     if (activeView !== 'accounts') return
-    
+
     // 查找对应的账号卡片
     const cardElement = this.container.querySelector(`[data-account-id="${accountId}"]`)
     if (!cardElement) return
-    
+
     // 获取更新后的账号数据
     const accounts = accountStore.getAccounts()
     const account = accounts.find(a => a.id === accountId)
     if (!account) return
-    
+
     // 获取当前选中状态
     const isSelected = this.selectedIds.has(accountId)
-    
+
     // 获取当前视图模式
     const settings = accountStore.getSettings()
     const viewMode = settings.viewMode
-    
+
     // 重新渲染单个卡片
     import('./renderers/account-card').then(({ renderAccountCard, renderAccountListItem }) => {
-      const newCardHtml = viewMode === 'grid' 
+      const newCardHtml = viewMode === 'grid'
         ? renderAccountCard(account, isSelected)
         : renderAccountListItem(account, isSelected)
-      
+
       // 替换卡片内容
       const tempDiv = document.createElement('div')
       tempDiv.innerHTML = newCardHtml
       const newCard = tempDiv.firstElementChild
-      
+
       if (newCard) {
         cardElement.replaceWith(newCard)
         // 重新绑定事件
         this.attachAccountCardEvents()
       }
     })
+  }
+
+  // 处理单个账号删除（性能优化：直接移除DOM节点，避免全量重渲染）
+  private handleAccountDelete(event: Event) {
+    const customEvent = event as CustomEvent<{ accountId: string }>
+    const { accountId } = customEvent.detail
+
+    console.log('[删除账号] 账号已删除:', accountId)
+
+    // 只在账号管理视图时处理
+    const activeView = this.container.querySelector('.sidebar-link.active')?.getAttribute('data-view')
+    if (activeView !== 'accounts') return
+
+    // 查找并移除对应的账号卡片
+    const cardElement = this.container.querySelector(`[data-account-id="${accountId}"]`)
+    if (cardElement) {
+      // 添加淡出动画
+      cardElement.classList.add('deleting')
+
+      // 延迟移除DOM，让动画播放完成
+      setTimeout(() => {
+        cardElement.remove()
+        console.log('[删除账号] DOM节点已移除')
+
+        // 从选中列表中移除
+        this.selectedIds.delete(accountId)
+
+        // 更新选中状态UI
+        this.updateSelectionUI()
+
+        // 检查是否还有账号，如果没有显示空状态
+        const accountGrid = this.container.querySelector('#account-grid')
+        if (accountGrid && accountGrid.children.length === 0) {
+          const contentBody = this.container.querySelector('.content-body')
+          if (contentBody) {
+            // 重新渲染以显示空状态
+            this.renderContent()
+          }
+        }
+      }, 300) // 动画时长300ms
+    }
   }
 
   public render() {
@@ -313,6 +402,18 @@ export class AccountManager {
     )
 
     this.attachAccountsEvents()
+
+    // 如果启用了分页，初始化分页渲染
+    const filteredAccounts = accountStore.getFilteredAccounts()
+    if (filteredAccounts.length > 100) {
+      initPaginatedAccountList(
+        container as HTMLElement,
+        filteredAccounts,
+        this.selectedIds,
+        settings.viewMode,
+        () => this.attachAccountCardEvents()
+      )
+    }
   }
 
   private async renderSettingsView(container: Element) {

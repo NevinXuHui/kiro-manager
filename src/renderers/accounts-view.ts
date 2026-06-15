@@ -10,6 +10,7 @@ export function renderAccountsView(
 ): string {
   const filteredAccounts = accountStore.getFilteredAccounts()
   const filter = accountStore.getFilter()
+  const usePagination = filteredAccounts.length > 100 // 超过100个账号自动启用分页
 
   return `
     <div class="content-body">
@@ -121,8 +122,18 @@ export function renderAccountsView(
       ${isFilterExpanded ? renderFilterPanel() : ''}
 
       ${filteredAccounts.length > 0 ? `
-        <div class="${viewMode === 'grid' ? 'account-grid' : 'account-list'}" id="account-grid">
-          ${filteredAccounts.map(account => viewMode === 'grid' ? renderAccountCard(account, selectedIds.has(account.id)) : renderAccountListItem(account, selectedIds.has(account.id))).join('')}
+        ${usePagination ? `
+          <!-- 分页模式提示 -->
+          <div style="padding: 8px 16px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.16); border-radius: 8px; margin: 0 16px 16px; font-size: 13px; color: var(--text-secondary);">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 16v-4M12 8h.01"></path>
+            </svg>
+            <strong>性能优化模式：</strong>检测到 ${filteredAccounts.length} 个账号，已启用分页加载以提升性能。
+          </div>
+        ` : ''}
+        <div class="${viewMode === 'grid' ? 'account-grid' : 'account-list'}" id="account-grid" data-use-pagination="${usePagination}">
+          ${!usePagination ? filteredAccounts.map(account => viewMode === 'grid' ? renderAccountCard(account, selectedIds.has(account.id)) : renderAccountListItem(account, selectedIds.has(account.id))).join('') : '<!-- 分页内容将由 JS 动态加载 -->'}
         </div>
       ` : `
         <div class="empty-state">
