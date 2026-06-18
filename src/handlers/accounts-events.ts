@@ -2,6 +2,7 @@ import { accountStore } from '../store'
 import { showAddAccountDialog } from '../dialogs/add-account-dialog'
 import { showFormatImportDialog } from '../dialogs/format-import-dialog'
 import { handleBatchCheck, handleBatchRefresh, handleBatchDelete, handleBatchEnableOverages } from '../actions/account-actions'
+import { showBatchNotesDialog } from '../dialogs/batch-notes-dialog'
 
 export function attachAccountsEvents(
   container: HTMLElement,
@@ -120,6 +121,26 @@ export function attachAccountsEvents(
     })
   }
 
+  // 导入日期范围筛选
+  const importDateStartInput = container.querySelector('#import-date-start') as HTMLInputElement
+  const importDateEndInput = container.querySelector('#import-date-end') as HTMLInputElement
+  if (importDateStartInput && importDateEndInput) {
+    importDateStartInput.addEventListener('change', () => {
+      const filter = accountStore.getFilter()
+      accountStore.setFilter({
+        ...filter,
+        importDateStart: importDateStartInput.value ? new Date(importDateStartInput.value).setHours(0, 0, 0, 0) : undefined
+      })
+    })
+    importDateEndInput.addEventListener('change', () => {
+      const filter = accountStore.getFilter()
+      accountStore.setFilter({
+        ...filter,
+        importDateEnd: importDateEndInput.value ? new Date(importDateEndInput.value).setHours(23, 59, 59, 999) : undefined
+      })
+    })
+  }
+
   const addBtns = container.querySelectorAll('#add-account-btn, #add-first-account-btn')
   addBtns.forEach(btn => {
     btn.addEventListener('click', () => showAddAccountDialog())
@@ -158,6 +179,11 @@ export function attachAccountsEvents(
   const batchCheckBtn = container.querySelector('#batch-check-btn')
   if (batchCheckBtn) {
     batchCheckBtn.addEventListener('click', () => handleBatchCheck(selectedIds))
+  }
+
+  const batchNotesBtn = container.querySelector('#batch-notes-btn')
+  if (batchNotesBtn) {
+    batchNotesBtn.addEventListener('click', () => showBatchNotesDialog(selectedIds))
   }
 
   const batchRefreshBtn = container.querySelector('#batch-refresh-btn')

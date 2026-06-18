@@ -99,6 +99,21 @@
   -moz-appearance: textfield;
 }
 
+/* 日期输入框样式 */
+.filter-date-input {
+  width: 130px;
+  cursor: pointer;
+}
+
+.filter-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.filter-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .filter-separator {
   font-size: 12px;
   color: var(--text-muted);

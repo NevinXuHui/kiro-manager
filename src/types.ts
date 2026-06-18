@@ -13,6 +13,8 @@ export interface AccountFilter {
   usageMax?: number // 0-1 的百分比
   daysRemainingMin?: number
   daysRemainingMax?: number
+  importDateStart?: number // 导入开始日期时间戳
+  importDateEnd?: number // 导入结束日期时间戳
 }
 
 export interface AccountCredentials {
@@ -140,5 +142,19 @@ declare global {
     deselectAllProxyAccounts?: () => void
     closeProxyAccountSelectDialog?: () => void
     confirmProxyAccountSelect?: () => void
+    // 编辑账号相关
+    selectEditIdp?: (idp: string, displayName: string) => void
+    closeEditAccountModal?: () => void
+    submitEditAccount?: () => void
+    showAddNoteDialog?: () => void
+    closeAddNoteModal?: () => void
+    submitAddNote?: () => void
+    editAccountFromDetail?: () => void
+    // 批量编辑备注相关
+    showAddNoteDialogFromBatch?: () => void
+    closeAddNoteModalBatch?: () => void
+    submitAddNoteBatch?: () => void
+    closeBatchNotesModal?: () => void
+    submitBatchNotes?: () => void
   }
 }

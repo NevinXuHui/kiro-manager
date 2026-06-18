@@ -1,6 +1,13 @@
 // 简化的状态管理
 import type { Account, AccountFilter, SubscriptionType, AccountStatus } from './types'
 
+// 备注定义
+interface AccountNote {
+  id: string
+  name: string
+  color: string
+}
+
 // 设置配置接口
 interface Settings {
   privacyMode: boolean // 隐私模式
@@ -16,6 +23,7 @@ class AccountStore {
   private listeners: Set<() => void> = new Set()
   private filter: AccountFilter = {}
   private activeAccountId: string | null = null
+  private notes: AccountNote[] = []
   private settings: Settings = {
     privacyMode: false,
     usagePrecision: false,
@@ -42,11 +50,27 @@ class AccountStore {
         this.notify()
       }
     }
-    
+
     // 加载设置
     const savedSettings = localStorage.getItem('settings')
     if (savedSettings) {
       this.settings = { ...this.settings, ...JSON.parse(savedSettings) }
+    }
+
+    // 加载备注
+    const savedNotes = localStorage.getItem('account_notes')
+    if (savedNotes) {
+      this.notes = JSON.parse(savedNotes)
+    } else {
+      // 初始化默认备注
+      this.notes = [
+        { id: '1', name: '主力账号', color: '#3b82f6' },
+        { id: '2', name: '备用账号', color: '#10b981' },
+        { id: '3', name: '测试账号', color: '#f59e0b' },
+        { id: '4', name: '已过期', color: '#ef4444' },
+        { id: '5', name: '团队共享', color: '#8b5cf6' }
+      ]
+      this.saveNotes()
     }
   }
 
@@ -261,6 +285,15 @@ class AccountStore {
       )
     }
 
+    // 应用导入日期范围筛选
+    if (this.filter.importDateStart !== undefined) {
+      result = result.filter(a => a.createdAt >= this.filter.importDateStart!)
+    }
+
+    if (this.filter.importDateEnd !== undefined) {
+      result = result.filter(a => a.createdAt <= this.filter.importDateEnd!)
+    }
+
     return result
   }
 
@@ -374,6 +407,50 @@ class AccountStore {
 
   private notify() {
     this.listeners.forEach(listener => listener())
+  }
+
+  // 备注相关方法
+  getNotes(): AccountNote[] {
+    return [...this.notes]
+  }
+
+  addNote(name: string, color: string): string {
+    const newNote: AccountNote = {
+      id: crypto.randomUUID(),
+      name,
+      color
+    }
+    this.notes.push(newNote)
+    this.saveNotes()
+    return newNote.id
+  }
+
+  updateNote(id: string, updates: Partial<AccountNote>) {
+    const index = this.notes.findIndex(n => n.id === id)
+    if (index !== -1) {
+      this.notes[index] = { ...this.notes[index], ...updates }
+      this.saveNotes()
+    }
+  }
+
+  deleteNote(id: string) {
+    this.notes = this.notes.filter(n => n.id !== id)
+    // 从所有账号中移除该备注
+    this.accounts.forEach(account => {
+      if (account.tags.includes(id)) {
+        account.tags = account.tags.filter(t => t !== id)
+      }
+    })
+    this.saveNotes()
+    this.saveAccounts()
+  }
+
+  private saveNotes() {
+    localStorage.setItem('account_notes', JSON.stringify(this.notes))
+  }
+
+  getNoteById(id: string): AccountNote | undefined {
+    return this.notes.find(n => n.id === id)
   }
 }
 

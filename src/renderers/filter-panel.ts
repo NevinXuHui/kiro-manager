@@ -9,6 +9,8 @@ interface FilterOptions {
   usageMax?: number
   daysRemainingMin?: number
   daysRemainingMax?: number
+  importDateStart?: number
+  importDateEnd?: number
   search?: string
 }
 
@@ -106,6 +108,19 @@ export function renderFilterPanel(): string {
             <input type="number" min="0" placeholder="最大" class="filter-input"
                    id="days-max" value="${filter.daysRemainingMax || ''}">
             <span class="filter-unit">天</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">导入日期:</span>
+          <div class="filter-range">
+            <input type="date" placeholder="开始日期" class="filter-input filter-date-input"
+                   id="import-date-start" value="${filter.importDateStart ? new Date(filter.importDateStart).toISOString().split('T')[0] : ''}">
+            <span class="filter-separator">-</span>
+            <input type="date" placeholder="结束日期" class="filter-input filter-date-input"
+                   id="import-date-end" value="${filter.importDateEnd ? new Date(filter.importDateEnd).toISOString().split('T')[0] : ''}">
           </div>
         </div>
       </div>
