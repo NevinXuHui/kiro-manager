@@ -300,6 +300,42 @@
   }
 }
 
+/* 已卖出账号样式 */
+.account-card.sold-account,
+.account-list-item.sold-account {
+  opacity: 0.75;
+  position: relative;
+}
+
+.account-card.sold-account::before,
+.account-list-item.sold-account::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid #f97316;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+.badge-sold {
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  color: white;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  box-shadow: 0 2px 4px rgba(249, 115, 22, 0.2);
+}
+
+.badge-sold.badge-small {
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
 /* 备注标签样式 */
 .account-notes {
   display: flex;

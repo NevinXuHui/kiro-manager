@@ -11,6 +11,7 @@ interface FilterOptions {
   daysRemainingMax?: number
   importDateStart?: number
   importDateEnd?: number
+  showSoldOnly?: boolean
   search?: string
 }
 
@@ -42,6 +43,8 @@ export function renderFilterPanel(): string {
     { value: 'Google', label: 'Google', count: stats.byIdp.Google || 0 },
     { value: 'Github', label: 'GitHub', count: stats.byIdp.Github || 0 }
   ]
+
+  const soldCount = accountStore.getAccounts().filter(a => a.isSold).length
 
   return `
     <div class="filter-panel">
@@ -82,6 +85,22 @@ export function renderFilterPanel(): string {
                 ${opt.label}(${opt.count})
               </button>
             `).join('')}
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">卖出:</span>
+          <div class="filter-buttons">
+            <button class="filter-btn ${filter.showSoldOnly === true ? 'active' : ''}"
+                    data-filter-type="sold"
+                    data-filter-value="only">
+              仅已卖出(${soldCount})
+            </button>
+            <button class="filter-btn ${filter.showSoldOnly === false ? 'active' : ''}"
+                    data-filter-type="sold"
+                    data-filter-value="exclude">
+              排除已卖出
+            </button>
           </div>
         </div>
       </div>

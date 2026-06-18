@@ -246,6 +246,13 @@ class AccountStore {
       )
     }
 
+    // 应用卖出状态筛选
+    if (this.filter.showSoldOnly === true) {
+      result = result.filter(a => a.isSold === true)
+    } else if (this.filter.showSoldOnly === false) {
+      result = result.filter(a => !a.isSold)
+    }
+
     // 应用订阅类型筛选
     if (this.filter.subscriptionTypes?.length) {
       result = result.filter(a => this.filter.subscriptionTypes!.includes(a.subscription.type))

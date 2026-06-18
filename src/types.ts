@@ -15,6 +15,8 @@ export interface AccountFilter {
   daysRemainingMax?: number
   importDateStart?: number // 导入开始日期时间戳
   importDateEnd?: number // 导入结束日期时间戳
+  isSold?: boolean // 筛选已卖出账号
+  showSoldOnly?: boolean // 仅显示已卖出
 }
 
 export interface AccountCredentials {
@@ -91,6 +93,10 @@ export interface Account {
   status: AccountStatus
   lastError?: string
   isActive: boolean
+  isSold?: boolean // 是否已卖出
+  soldAt?: number // 卖出时间戳
+  soldPrice?: number // 卖出价格（可选）
+  soldNote?: string // 卖出备注（可选）
   createdAt: number
   lastUsedAt: number
 }
@@ -156,5 +162,8 @@ declare global {
     submitAddNoteBatch?: () => void
     closeBatchNotesModal?: () => void
     submitBatchNotes?: () => void
+    // 批量标记卖出相关
+    closeBatchSoldModal?: () => void
+    submitBatchSold?: () => void
   }
 }

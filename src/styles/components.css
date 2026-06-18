@@ -60,6 +60,16 @@
   opacity: 0.9;
 }
 
+.ui-btn-warning {
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  color: white;
+  border-color: #f97316;
+}
+
+.ui-btn-warning:hover {
+  opacity: 0.9;
+}
+
 .ui-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

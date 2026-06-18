@@ -74,6 +74,7 @@ export function updateSelectionUI(container: HTMLElement, selectedIds: Set<strin
 
   // 更新批量操作按钮的禁用状态
   const batchNotesBtn = container.querySelector('#batch-notes-btn') as HTMLButtonElement
+  const batchSoldBtn = container.querySelector('#batch-sold-btn') as HTMLButtonElement
   const batchCheckBtn = container.querySelector('#batch-check-btn') as HTMLButtonElement
   const batchRefreshBtn = container.querySelector('#batch-refresh-btn') as HTMLButtonElement
   const batchOveragesBtn = container.querySelector('#batch-overages-btn') as HTMLButtonElement
@@ -82,6 +83,7 @@ export function updateSelectionUI(container: HTMLElement, selectedIds: Set<strin
 
   const isDisabled = selectedIds.size === 0
   if (batchNotesBtn) batchNotesBtn.disabled = isDisabled
+  if (batchSoldBtn) batchSoldBtn.disabled = isDisabled
   if (batchCheckBtn) batchCheckBtn.disabled = isDisabled
   if (batchRefreshBtn) batchRefreshBtn.disabled = isDisabled
   if (batchOveragesBtn) batchOveragesBtn.disabled = isDisabled

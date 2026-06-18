@@ -3,6 +3,7 @@ import { showAddAccountDialog } from '../dialogs/add-account-dialog'
 import { showFormatImportDialog } from '../dialogs/format-import-dialog'
 import { handleBatchCheck, handleBatchRefresh, handleBatchDelete, handleBatchEnableOverages } from '../actions/account-actions'
 import { showBatchNotesDialog } from '../dialogs/batch-notes-dialog'
+import { showBatchSoldDialog } from '../dialogs/batch-sold-dialog'
 
 export function attachAccountsEvents(
   container: HTMLElement,
@@ -186,6 +187,11 @@ export function attachAccountsEvents(
     batchNotesBtn.addEventListener('click', () => showBatchNotesDialog(selectedIds))
   }
 
+  const batchSoldBtn = container.querySelector('#batch-sold-btn')
+  if (batchSoldBtn) {
+    batchSoldBtn.addEventListener('click', () => showBatchSoldDialog(selectedIds))
+  }
+
   const batchRefreshBtn = container.querySelector('#batch-refresh-btn')
   if (batchRefreshBtn) {
     batchRefreshBtn.addEventListener('click', () => handleBatchRefresh(selectedIds))
@@ -239,5 +245,19 @@ function toggleFilter(type: string, value: string) {
       ...filter,
       idps: newValue.length > 0 ? newValue : undefined
     })
+  } else if (type === 'sold') {
+    if (value === 'only') {
+      // 点击"仅已卖出"
+      accountStore.setFilter({
+        ...filter,
+        showSoldOnly: filter.showSoldOnly === true ? undefined : true
+      })
+    } else if (value === 'exclude') {
+      // 点击"排除已卖出"
+      accountStore.setFilter({
+        ...filter,
+        showSoldOnly: filter.showSoldOnly === false ? undefined : false
+      })
+    }
   }
 }
