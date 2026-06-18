@@ -28,6 +28,11 @@ if ! command -v npm &> /dev/null; then
     exit 1
 fi
 
+# 加载 Rust 环境 (如果已安装)
+if [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
+fi
+
 # 检查 Rust 是否安装
 if ! command -v cargo &> /dev/null; then
     echo -e "${YELLOW}警告: 未找到 Rust/Cargo，Tauri 应用需要 Rust 环境${NC}"

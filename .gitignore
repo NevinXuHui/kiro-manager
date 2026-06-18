@@ -82,3 +82,4 @@ accounts_split_remaining_*/
 
 # Guide directory (contains large binaries)
 guide/
+.spec-workflow/
