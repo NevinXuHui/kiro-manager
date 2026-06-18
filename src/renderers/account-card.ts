@@ -139,6 +139,19 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
         </div>
       ` : ''}
 
+      ${account.tags && account.tags.length > 0 ? `
+        <div class="account-notes">
+          ${account.tags.map(tagId => {
+            const note = accountStore.getNoteById(tagId)
+            return note ? `
+              <span class="note-badge" style="background-color: ${note.color}20; color: ${note.color}; border-color: ${note.color}40;">
+                ${note.name}
+              </span>
+            ` : ''
+          }).join('')}
+        </div>
+      ` : ''}
+
       <!-- 底部信息栏 -->
       <div class="card-footer-info">
         <div class="footer-info-item ${isDaysWarning(account.subscription.daysRemaining) ? 'warning' : ''}">
@@ -238,6 +251,18 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
             ${displayNickname ? `<span class="list-item-nickname">${displayNickname}</span>` : ''}
             <div class="status-dot">${getStatusText(account.status)}</div>
           </div>
+          ${account.tags && account.tags.length > 0 ? `
+            <div class="account-notes-list">
+              ${account.tags.map(tagId => {
+                const note = accountStore.getNoteById(tagId)
+                return note ? `
+                  <span class="note-badge-small" style="background-color: ${note.color}20; color: ${note.color}; border-color: ${note.color}40;">
+                    ${note.name}
+                  </span>
+                ` : ''
+              }).join('')}
+            </div>
+          ` : ''}
         </div>
       </div>
       <div class="list-item-center">

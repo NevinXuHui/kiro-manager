@@ -1,5 +1,6 @@
 // 账号详情对话框
 import type { Account } from '../types'
+import { showEditAccountDialog } from './edit-account-dialog'
 
 /**
  * 显示账号详情对话框
@@ -122,12 +123,21 @@ export function showAccountDetailDialog(account: Account): void {
       </div>
     `,
     footer: `
+      <button class="ui-btn ui-btn-secondary ui-btn-sm" onclick="window.editAccountFromDetail()">编辑账号</button>
       <button class="ui-btn ui-btn-secondary ui-btn-sm" onclick="window.copyAccountJson()">复制数据</button>
       <button class="ui-btn ui-btn-primary ui-btn-sm" onclick="window.closeAccountDetailModal()">确定</button>
     `,
     size: 'xl',
     closable: true
   })
+
+  window.editAccountFromDetail = () => {
+    window.UI?.modal.closeAll()
+    showEditAccountDialog(account)
+    delete window.closeAccountDetailModal
+    delete window.copyAccountJson
+    delete window.editAccountFromDetail
+  }
 
   window.copyAccountJson = () => {
     navigator.clipboard.writeText(JSON.stringify(account, null, 2))
@@ -138,5 +148,6 @@ export function showAccountDetailDialog(account: Account): void {
     window.UI?.modal.closeAll()
     delete window.closeAccountDetailModal
     delete window.copyAccountJson
+    delete window.editAccountFromDetail
   }
 }
