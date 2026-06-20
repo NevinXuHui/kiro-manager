@@ -311,6 +311,22 @@ class AccountStore {
       result = result.filter(a => a.createdAt <= this.filter.importDateEnd!)
     }
 
+    // 应用导出状态筛选
+    if (this.filter.showExportedOnly === true) {
+      result = result.filter(a => a.lastExportedAt !== undefined)
+    } else if (this.filter.showExportedOnly === false) {
+      result = result.filter(a => a.lastExportedAt === undefined)
+    }
+
+    // 应用导出日期范围筛选
+    if (this.filter.exportDateStart !== undefined) {
+      result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt >= this.filter.exportDateStart!)
+    }
+
+    if (this.filter.exportDateEnd !== undefined) {
+      result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt <= this.filter.exportDateEnd!)
+    }
+
     return result
   }
 

@@ -18,6 +18,9 @@ export interface AccountFilter {
   isSold?: boolean // 筛选已卖出账号
   showSoldOnly?: boolean // 仅显示已卖出
   emailDomains?: string[] // 邮箱后缀筛选
+  exportDateStart?: number // 导出开始日期时间戳
+  exportDateEnd?: number // 导出结束日期时间戳
+  showExportedOnly?: boolean // 仅显示已导出
 }
 
 export interface AccountCredentials {
@@ -95,6 +98,7 @@ export interface Account {
   lastError?: string
   isActive: boolean
   soldNote?: string // 卖出备注（与已卖出标签配套使用）
+  lastExportedAt?: number // 最后导出时间戳
   createdAt: number
   lastUsedAt: number
 }

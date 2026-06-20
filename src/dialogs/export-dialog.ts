@@ -226,11 +226,20 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
           accounts.forEach(account => {
             if (!account.tags.includes('sold')) {
               accountStore.updateAccount(account.id, {
-                tags: [...account.tags, 'sold']
+                tags: [...account.tags, 'sold'],
+                lastExportedAt: Date.now()
               })
             }
           })
           console.log(`[批量导出] 已将 ${accounts.length} 个账号标记为已卖出`)
+        } else if (successCount > 0) {
+          // 即使不标记为已卖出，也记录导出时间
+          console.log('[批量导出] 记录导出时间...')
+          accounts.forEach(account => {
+            accountStore.updateAccount(account.id, {
+              lastExportedAt: Date.now()
+            })
+          })
         }
 
         if (errorCount > 0) {
@@ -287,11 +296,20 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
           accounts.forEach(account => {
             if (!account.tags.includes('sold')) {
               accountStore.updateAccount(account.id, {
-                tags: [...account.tags, 'sold']
+                tags: [...account.tags, 'sold'],
+                lastExportedAt: Date.now()
               })
             }
           })
           console.log(`[导出] 已将 ${accounts.length} 个账号标记为已卖出`)
+        } else {
+          // 即使不标记为已卖出，也记录导出时间
+          console.log('[导出] 记录导出时间...')
+          accounts.forEach(account => {
+            accountStore.updateAccount(account.id, {
+              lastExportedAt: Date.now()
+            })
+          })
         }
 
         const message = markAsSold && selectedFormat === 'json'

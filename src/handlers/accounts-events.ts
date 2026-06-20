@@ -142,6 +142,26 @@ export function attachAccountsEvents(
     })
   }
 
+  // 导出日期范围筛选
+  const exportDateStartInput = container.querySelector('#export-date-start') as HTMLInputElement
+  const exportDateEndInput = container.querySelector('#export-date-end') as HTMLInputElement
+  if (exportDateStartInput && exportDateEndInput) {
+    exportDateStartInput.addEventListener('change', () => {
+      const filter = accountStore.getFilter()
+      accountStore.setFilter({
+        ...filter,
+        exportDateStart: exportDateStartInput.value ? new Date(exportDateStartInput.value).setHours(0, 0, 0, 0) : undefined
+      })
+    })
+    exportDateEndInput.addEventListener('change', () => {
+      const filter = accountStore.getFilter()
+      accountStore.setFilter({
+        ...filter,
+        exportDateEnd: exportDateEndInput.value ? new Date(exportDateEndInput.value).setHours(23, 59, 59, 999) : undefined
+      })
+    })
+  }
+
   const addBtns = container.querySelectorAll('#add-account-btn, #add-first-account-btn')
   addBtns.forEach(btn => {
     btn.addEventListener('click', () => showAddAccountDialog())
@@ -290,6 +310,20 @@ function toggleFilter(type: string, value: string) {
       accountStore.setFilter({
         ...filter,
         showSoldOnly: filter.showSoldOnly === false ? undefined : false
+      })
+    }
+  } else if (type === 'exported') {
+    if (value === 'only') {
+      // 点击"仅已导出"
+      accountStore.setFilter({
+        ...filter,
+        showExportedOnly: filter.showExportedOnly === true ? undefined : true
+      })
+    } else if (value === 'exclude') {
+      // 点击"排除已导出"
+      accountStore.setFilter({
+        ...filter,
+        showExportedOnly: filter.showExportedOnly === false ? undefined : false
       })
     }
   }

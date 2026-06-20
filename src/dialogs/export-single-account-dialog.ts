@@ -113,10 +113,17 @@ export function showExportSingleAccountDialog(account: Account, index: number = 
           console.log('[单账号导出] 标记账号为已卖出...')
           if (!account.tags.includes('sold')) {
             accountStore.updateAccount(account.id, {
-              tags: [...account.tags, 'sold']
+              tags: [...account.tags, 'sold'],
+              lastExportedAt: Date.now()
             })
           }
           console.log('[单账号导出] 已标记为已卖出')
+        } else {
+          // 即使不标记为已卖出，也记录导出时间
+          console.log('[单账号导出] 记录导出时间...')
+          accountStore.updateAccount(account.id, {
+            lastExportedAt: Date.now()
+          })
         }
 
         const message = markAsSold

@@ -12,7 +12,10 @@ interface FilterOptions {
   daysRemainingMax?: number
   importDateStart?: number
   importDateEnd?: number
+  exportDateStart?: number
+  exportDateEnd?: number
   showSoldOnly?: boolean
+  showExportedOnly?: boolean
   search?: string
 }
 
@@ -163,6 +166,35 @@ export function renderFilterPanel(): string {
             <span class="filter-separator">-</span>
             <input type="date" placeholder="结束日期" class="filter-input filter-date-input"
                    id="import-date-end" value="${filter.importDateEnd ? new Date(filter.importDateEnd).toISOString().split('T')[0] : ''}">
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">导出日期:</span>
+          <div class="filter-range">
+            <input type="date" placeholder="开始日期" class="filter-input filter-date-input"
+                   id="export-date-start" value="${filter.exportDateStart ? new Date(filter.exportDateStart).toISOString().split('T')[0] : ''}">
+            <span class="filter-separator">-</span>
+            <input type="date" placeholder="结束日期" class="filter-input filter-date-input"
+                   id="export-date-end" value="${filter.exportDateEnd ? new Date(filter.exportDateEnd).toISOString().split('T')[0] : ''}">
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">导出状态:</span>
+          <div class="filter-buttons">
+            <button class="filter-btn ${filter.showExportedOnly === true ? 'active' : ''}"
+                    data-filter-type="exported"
+                    data-filter-value="only">
+              仅已导出
+            </button>
+            <button class="filter-btn ${filter.showExportedOnly === false ? 'active' : ''}"
+                    data-filter-type="exported"
+                    data-filter-value="exclude">
+              排除已导出
+            </button>
           </div>
         </div>
       </div>
