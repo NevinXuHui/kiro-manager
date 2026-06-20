@@ -355,7 +355,7 @@ function showCustomSelectDialog(
         <div class="form-section">
           <label class="form-label">请输入要选择的账号数量</label>
           <input type="number" class="form-input" id="custom-select-count" placeholder="例如：50" min="1" step="1" autofocus>
-          <p class="form-hint">将从当前筛选结果中选择指定数量的未使用账号（用量为0）</p>
+          <p class="form-hint">将从当前筛选结果中选择指定数量的未使用、未卖出、未封禁账号（用量为0）</p>
         </div>
       </div>
     `,
@@ -405,7 +405,7 @@ function showCustomSelectDialog(
 }
 
 /**
- * 快速选择未使用的账号
+ * 快速选择可用的未使用账号
  * @param count 要选择的数量
  * @param selectedIds 当前选中的账号ID集合
  * @param onUpdateSelectionUI 更新选中状态UI的回调
@@ -417,13 +417,17 @@ function quickSelectUnusedAccounts(
 ) {
   const filteredAccounts = accountStore.getFilteredAccounts()
 
-  // 筛选出未使用过用量的账号（current === 0）
-  const unusedAccounts = filteredAccounts.filter(account => {
-    return account.usage.current === 0
+  // 筛选出未使用、未卖出、未封禁的账号
+  const availableAccounts = filteredAccounts.filter(account => {
+    const isUnused = account.usage.current === 0
+    const isUnsold = !account.tags.includes('sold')
+    const isNotSuspended = account.status !== 'suspended'
+
+    return isUnused && isUnsold && isNotSuspended
   })
 
-  if (unusedAccounts.length === 0) {
-    window.UI?.toast.warning('当前筛选结果中没有未使用的账号')
+  if (availableAccounts.length === 0) {
+    window.UI?.toast.warning('当前筛选结果中没有未使用、未卖出、未封禁的账号')
     return
   }
 
@@ -431,16 +435,16 @@ function quickSelectUnusedAccounts(
   selectedIds.clear()
 
   // 选择指定数量的账号
-  const selectCount = Math.min(count, unusedAccounts.length)
+  const selectCount = Math.min(count, availableAccounts.length)
   for (let i = 0; i < selectCount; i++) {
-    selectedIds.add(unusedAccounts[i].id)
+    selectedIds.add(availableAccounts[i].id)
   }
 
   onUpdateSelectionUI()
 
   const message = selectCount < count
-    ? `已选择 ${selectCount} 个未使用账号（仅有 ${unusedAccounts.length} 个可选）`
-    : `已选择 ${selectCount} 个未使用账号`
+    ? `已选择 ${selectCount} 个可用未使用账号（仅有 ${availableAccounts.length} 个可选）`
+    : `已选择 ${selectCount} 个可用未使用账号`
 
   window.UI?.toast.success(message)
 }

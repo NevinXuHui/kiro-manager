@@ -1,7 +1,7 @@
 import { accountStore } from '../store'
 import { openFloatingProgress } from '../utils/floating-progress'
 import { smartParseFormatImportAccounts } from '../utils/format-import-parser'
-import type { AccountSubscription } from '../types'
+import type { Account, AccountSubscription } from '../types'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { open } from '@tauri-apps/plugin-dialog'
 
@@ -21,6 +21,8 @@ interface ParsedAccount {
   status?: 'active' | 'expired' | 'error' | 'refreshing' | 'unknown' | 'suspended'
   lastError?: string
 }
+
+type NewAccount = Omit<Account, 'id' | 'createdAt' | 'isActive'>
 
 function isSuspendedError(message: string): boolean {
   const normalized = message.toLowerCase()
@@ -536,20 +538,25 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   importText!.textContent = '检查重复...'
 
   // 🔍 检查重复账号（仅根据邮箱去重）
-  const existingAccounts = accountStore.getAccounts()
+  const existingEmails = new Set(
+    accountStore
+      .getAccounts()
+      .map(account => account.email?.trim().toLowerCase())
+      .filter(Boolean)
+  )
+  const importEmails = new Set<string>()
   const duplicates: { index: number; email: string; refreshToken: string }[] = []
-  const uniqueAccounts: typeof accounts = []
+  const uniqueItems: { account: ParsedAccount; sourceIndex: number }[] = []
 
   accounts.forEach((account, index) => {
-    // 仅检查邮箱是否重复
-    const isDuplicate = account.email && existingAccounts.some(existing => {
-      return existing.email.toLowerCase() === account.email.toLowerCase()
-    })
+    const email = account.email?.trim().toLowerCase()
+    const isDuplicate = Boolean(email && (existingEmails.has(email) || importEmails.has(email)))
 
     if (isDuplicate) {
       duplicates.push({ index: index + 1, email: account.email, refreshToken: account.refreshToken })
     } else {
-      uniqueAccounts.push(account)
+      if (email) importEmails.add(email)
+      uniqueItems.push({ account, sourceIndex: index })
     }
   })
 
@@ -558,7 +565,7 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
     const confirmImport = confirm(
       `检测到 ${duplicates.length} 个重复账号（已存在相同的邮箱）。\n\n` +
       `- 重复账号: ${duplicates.length} 个（将跳过）\n` +
-      `- 新账号: ${uniqueAccounts.length} 个（将导入）\n\n` +
+      `- 新账号: ${uniqueItems.length} 个（将导入）\n\n` +
       `是否继续导入新账号？`
     )
 
@@ -570,7 +577,7 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   }
 
   // 如果没有新账号可导入
-  if (uniqueAccounts.length === 0) {
+  if (uniqueItems.length === 0) {
     window.UI?.toast.warning('所有账号都已存在，无需导入')
     importBtn.disabled = false
     importText!.textContent = '导入'
@@ -588,19 +595,20 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   const importProgress = openFloatingProgress({
     id: 'format-import',
     title: '格式化导入',
-    total: uniqueAccounts.length,
-    detail: `0/${uniqueAccounts.length} 已完成 (跳过重复 ${skippedCount} 个)`
+    total: uniqueItems.length,
+    detail: `0/${uniqueItems.length} 已完成 (跳过重复 ${skippedCount} 个)`
   })
 
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
 
   const CONCURRENCY = 10
-  const queue = uniqueAccounts.map((a, i) => ({ account: a, index: i }))
+  const queue = uniqueItems.map((item, uniqueIndex) => ({ ...item, uniqueIndex }))
+  const accountsToAdd: Array<NewAccount | null> = new Array(uniqueItems.length).fill(null)
 
-  function addDirectAccount(account: ParsedAccount, index: number, fallbackStatus: ParsedAccount['status'] = 'unknown') {
+  function buildDirectAccount(account: ParsedAccount, sourceIndex: number, fallbackStatus: ParsedAccount['status'] = 'unknown'): NewAccount {
     const now = Date.now()
-    accountStore.addAccount({
-      email: account.email || `账号 ${index + 1}`,
+    return {
+      email: account.email || `账号 ${sourceIndex + 1}`,
       nickname: account.email ? account.email.split('@')[0] : undefined,
       idp: account.provider as any,
       userId: account.userId,
@@ -622,24 +630,26 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
       status: account.status || fallbackStatus || 'unknown',
       lastError: account.lastError || undefined,
       lastUsedAt: now
-    })
+    }
   }
 
-  async function processOne(account: ParsedAccount, index: number) {
+  async function processOne(account: ParsedAccount, uniqueIndex: number, sourceIndex: number) {
+    const displayIndex = sourceIndex + 1
+
     try {
       const canVerify = Boolean(account.refreshToken)
 
       if (!canVerify && account.accessToken) {
-        addDirectAccount(account, index)
+        accountsToAdd[uniqueIndex] = buildDirectAccount(account, sourceIndex)
         successCount++
-        errors.push(`#${index + 1}: 缺少验活所需 refreshToken，已仅导入原始数据，状态标记为未知`)
+        errors.push(`#${displayIndex}: 缺少验活所需 refreshToken，已仅导入原始数据，状态标记为未知`)
         return
       }
 
       // 需要 API 验证
       if (!canVerify) {
         failedCount++
-        errors.push(`#${index + 1}: 缺少验活所需 refreshToken`)
+        errors.push(`#${displayIndex}: 缺少验活所需 refreshToken`)
         return
       }
 
@@ -652,7 +662,7 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
 
       if (result.success && result.data) {
         const now = Date.now()
-        accountStore.addAccount({
+        accountsToAdd[uniqueIndex] = {
           email: result.data.email,
           nickname: result.data.email ? result.data.email.split('@')[0] : undefined,
           idp: account.provider as any,
@@ -698,12 +708,12 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
           tags: [],
           status: 'active',
           lastUsedAt: Date.now()
-        })
+        }
         successCount++
       } else if (result.data && result.data.user_id) {
         const now = Date.now()
         const email = result.data.email || account.email || '已封禁账号'
-        accountStore.addAccount({
+        accountsToAdd[uniqueIndex] = {
           email,
           nickname: email.includes('@') ? email.split('@')[0] : undefined,
           idp: account.provider as any,
@@ -729,27 +739,27 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
           tags: [],
           status: 'suspended',
           lastUsedAt: now
-        })
+        }
         successCount++
-        errors.push(`#${index + 1}: ${result.error || '账号被封禁'}（已标记为已封禁）`)
+        errors.push(`#${displayIndex}: ${result.error || '账号被封禁'}（已标记为已封禁）`)
       } else if (account.accessToken) {
         const fallbackError = result.error || '验活失败'
         account.lastError = fallbackError
-        addDirectAccount(account, index, isSuspendedError(fallbackError) ? 'suspended' : 'error')
+        accountsToAdd[uniqueIndex] = buildDirectAccount(account, sourceIndex, isSuspendedError(fallbackError) ? 'suspended' : 'error')
         successCount++
-        errors.push(`#${index + 1}: ${fallbackError}（已按原始数据导入）`)
+        errors.push(`#${displayIndex}: ${fallbackError}（已按原始数据导入）`)
       } else {
         failedCount++
-        errors.push(`#${index + 1}: ${result.error || '验证失败'}`)
+        errors.push(`#${displayIndex}: ${result.error || '验证失败'}`)
       }
     } catch (error) {
       failedCount++
-      errors.push(`#${index + 1}: ${(error as Error).message}`)
+      errors.push(`#${displayIndex}: ${(error as Error).message}`)
     } finally {
       completedCount++
       importProgress.update({
         completed: completedCount,
-        total: uniqueAccounts.length,
+        total: uniqueItems.length,
         detail: `成功 ${successCount}，失败 ${failedCount}，跳过重复 ${skippedCount}`
       })
     }
@@ -761,12 +771,23 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
       while (queue.length > 0) {
         const next = queue.shift()
         if (!next) return
-        await processOne(next.account, next.index)
+        await processOne(next.account, next.uniqueIndex, next.sourceIndex)
         await new Promise<void>(resolve => setTimeout(resolve, 0))
       }
     })())
   }
   await Promise.all(workers)
+
+  const importedAccounts = accountsToAdd.filter((account): account is NewAccount => Boolean(account))
+  if (importedAccounts.length > 0) {
+    importText!.textContent = '保存中...'
+    importProgress.update({
+      completed: completedCount,
+      total: uniqueItems.length,
+      detail: `正在保存 ${importedAccounts.length} 个账号...`
+    })
+    await accountStore.batchAddAccounts(importedAccounts)
+  }
 
   if (successCount > 0) {
     const msg = skippedCount > 0
