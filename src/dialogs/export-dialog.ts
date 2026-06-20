@@ -1,7 +1,7 @@
 // 导出对话框
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
-import { buildExportFilename, buildSingleAccountFilename, generateExportContent } from '../utils/account-utils'
+import { buildExportFilename, buildSingleAccountFilename, convertAccountToSimplifiedFormat, generateExportContent } from '../utils/account-utils'
 
 /**
  * 显示导出对话框
@@ -171,23 +171,17 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
             const filename = buildSingleAccountFilename(account.email, i + 1, exportDate)
             const filePath = `${dirPath}/${filename}`
 
-            // 生成单个账号的导出数据
-            const exportData = {
-              version: '1.0',
-              exportedAt: exportDate.toISOString(),
-              accounts: [
-                includeCredentials
-                  ? account
-                  : {
-                      ...account,
-                      credentials: {
-                        ...account.credentials,
-                        accessToken: '',
-                        refreshToken: '',
-                        csrfToken: ''
-                      }
-                    }
-              ]
+            // 生成简化格式的导出数据
+            let exportData = convertAccountToSimplifiedFormat(account)
+
+            // 如果不包含凭证，清空敏感字段
+            if (!includeCredentials) {
+              exportData = {
+                ...exportData,
+                clientId: '',
+                clientSecret: '',
+                refreshToken: ''
+              }
             }
 
             const content = JSON.stringify(exportData, null, 2)

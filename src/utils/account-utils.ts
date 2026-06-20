@@ -92,6 +92,27 @@ export function buildSingleAccountFilename(email: string, index: number, date = 
 }
 
 /**
+ * 将 Account 对象转换为简化的导出格式
+ * 匹配目标格式：clientId, clientSecret, creditLimit, creditUsed, email, password, provider, proxy_ip, proxy_region, refreshToken, region, subscription
+ */
+export function convertAccountToSimplifiedFormat(account: any): any {
+  return {
+    clientId: account.credentials?.clientId || '',
+    clientSecret: account.credentials?.clientSecret || '',
+    creditLimit: account.usage?.limit || 0,
+    creditUsed: account.usage?.current || 0,
+    email: account.email || '',
+    password: '', // 密码字段系统中未存储，导出为空
+    provider: account.idp || 'BuilderId',
+    proxy_ip: '', // 代理IP系统中未存储，导出为空
+    proxy_region: '', // 代理地区系统中未存储，导出为空
+    refreshToken: account.credentials?.refreshToken || '',
+    region: account.credentials?.region || 'us-east-1',
+    subscription: account.subscription?.title || account.subscription?.type || 'FREE'
+  }
+}
+
+/**
  * 生成导出内容
  */
 export function generateExportContent(

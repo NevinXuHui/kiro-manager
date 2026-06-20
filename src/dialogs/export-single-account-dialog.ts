@@ -1,7 +1,7 @@
 // 单个账号导出对话框
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
-import { buildSingleAccountFilename } from '../utils/account-utils'
+import { buildSingleAccountFilename, convertAccountToSimplifiedFormat } from '../utils/account-utils'
 
 /**
  * 显示单个账号导出对话框
@@ -58,23 +58,17 @@ export function showExportSingleAccountDialog(account: Account, index: number = 
     try {
       const includeCredentials = (document.getElementById('include-credentials-single') as HTMLInputElement)?.checked ?? true
 
-      // 生成导出数据
-      const exportData = {
-        version: '1.0',
-        exportedAt: new Date().toISOString(),
-        accounts: [
-          includeCredentials
-            ? account
-            : {
-                ...account,
-                credentials: {
-                  ...account.credentials,
-                  accessToken: '',
-                  refreshToken: '',
-                  csrfToken: ''
-                }
-              }
-        ]
+      // 生成简化格式的导出数据
+      let exportData = convertAccountToSimplifiedFormat(account)
+
+      // 如果不包含凭证，清空敏感字段
+      if (!includeCredentials) {
+        exportData = {
+          ...exportData,
+          clientId: '',
+          clientSecret: '',
+          refreshToken: ''
+        }
       }
 
       const content = JSON.stringify(exportData, null, 2)
