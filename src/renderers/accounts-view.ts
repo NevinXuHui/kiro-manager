@@ -1,16 +1,119 @@
-import type { Account } from '../types'
 import { accountStore } from '../store'
 import { renderAccountCard, renderAccountListItem } from './account-card'
 import { renderFilterPanel } from './filter-panel'
 
+export interface AccountPaginationState {
+  currentPage: number
+  pageSize: number
+}
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+
+type PageButton = number | 'ellipsis-left' | 'ellipsis-right'
+
+function clampPage(page: number, totalPages: number): number {
+  return Math.min(Math.max(1, page), totalPages)
+}
+
+function getPageButtons(currentPage: number, totalPages: number): PageButton[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  }
+
+  const pages: PageButton[] = [1]
+  const start = Math.max(2, currentPage - 1)
+  const end = Math.min(totalPages - 1, currentPage + 1)
+
+  if (start > 2) pages.push('ellipsis-left')
+
+  for (let page = start; page <= end; page++) {
+    pages.push(page)
+  }
+
+  if (end < totalPages - 1) pages.push('ellipsis-right')
+
+  pages.push(totalPages)
+  return pages
+}
+
+function renderPaginationControls(total: number, currentPage: number, pageSize: number): string {
+  if (total === 0) return ''
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const safeCurrentPage = clampPage(currentPage, totalPages)
+  const startIndex = (safeCurrentPage - 1) * pageSize + 1
+  const endIndex = Math.min(safeCurrentPage * pageSize, total)
+  const isFirstPage = safeCurrentPage === 1
+  const isLastPage = safeCurrentPage === totalPages
+
+  const pageButtons = getPageButtons(safeCurrentPage, totalPages)
+    .map(page => {
+      if (typeof page !== 'number') {
+        return '<span class="pagination-ellipsis">...</span>'
+      }
+
+      return `
+        <button class="pagination-btn pagination-page-btn ${page === safeCurrentPage ? 'active' : ''}"
+                data-pagination-page="${page}"
+                ${page === safeCurrentPage ? 'disabled' : ''}>
+          ${page}
+        </button>
+      `
+    })
+    .join('')
+
+  return `
+    <div class="accounts-pagination" id="accounts-pagination">
+      <div class="pagination-summary">
+        <span>第 ${startIndex}-${endIndex} 个，共 ${total} 个账号</span>
+        <span>第 ${safeCurrentPage}/${totalPages} 页</span>
+      </div>
+
+      <div class="pagination-main">
+        <div class="pagination-nav">
+          <button class="pagination-btn" data-pagination-action="first" ${isFirstPage ? 'disabled' : ''}>首页</button>
+          <button class="pagination-btn" data-pagination-action="prev" ${isFirstPage ? 'disabled' : ''}>上一页</button>
+          <div class="pagination-pages">
+            ${pageButtons}
+          </div>
+          <button class="pagination-btn" data-pagination-action="next" ${isLastPage ? 'disabled' : ''}>下一页</button>
+          <button class="pagination-btn" data-pagination-action="last" ${isLastPage ? 'disabled' : ''}>末页</button>
+        </div>
+
+        <div class="pagination-tools">
+          <label class="pagination-tool">
+            <span>每页</span>
+            <select class="pagination-select" id="account-page-size">
+              ${PAGE_SIZE_OPTIONS.map(size => `
+                <option value="${size}" ${size === pageSize ? 'selected' : ''}>${size}</option>
+              `).join('')}
+            </select>
+          </label>
+          <label class="pagination-tool">
+            <span>跳转</span>
+            <input class="pagination-input" id="account-page-jump" type="number" min="1" max="${totalPages}" value="${safeCurrentPage}">
+          </label>
+          <button class="pagination-btn" data-pagination-action="jump">确定</button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
 export function renderAccountsView(
   selectedIds: Set<string>,
   isFilterExpanded: boolean,
-  viewMode: 'grid' | 'list'
+  viewMode: 'grid' | 'list',
+  pagination: AccountPaginationState
 ): string {
   const filteredAccounts = accountStore.getFilteredAccounts()
   const filter = accountStore.getFilter()
-  const usePagination = filteredAccounts.length > 100 // 超过100个账号自动启用分页
+  const totalAccounts = filteredAccounts.length
+  const totalPages = Math.max(1, Math.ceil(totalAccounts / pagination.pageSize))
+  const currentPage = clampPage(pagination.currentPage, totalPages)
+  const pageStart = (currentPage - 1) * pagination.pageSize
+  const pageAccounts = filteredAccounts.slice(pageStart, pageStart + pagination.pageSize)
+  const allFilteredSelected = selectedIds.size > 0 && selectedIds.size === totalAccounts
 
   return `
     <div class="content-body">
@@ -65,8 +168,8 @@ export function renderAccountsView(
 
         <div class="toolbar-secondary">
           <div class="select-all-wrapper">
-            <div class="custom-checkbox ${selectedIds.size > 0 && selectedIds.size === accountStore.getFilteredAccounts().length ? 'checked' : ''}" id="select-all-checkbox" title="${selectedIds.size > 0 && selectedIds.size === accountStore.getFilteredAccounts().length ? '取消全选' : '全选'}">
-              ${selectedIds.size > 0 && selectedIds.size === accountStore.getFilteredAccounts().length ? '<svg fill="currentColor" viewBox="0 0 20 20" width="12" height="12"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>' : ''}
+            <div class="custom-checkbox ${allFilteredSelected ? 'checked' : ''}" id="select-all-checkbox" title="${allFilteredSelected ? '取消全选' : '全选'}">
+              ${allFilteredSelected ? '<svg fill="currentColor" viewBox="0 0 20 20" width="12" height="12"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>' : ''}
             </div>
             ${selectedIds.size > 0 ? `
               <span class="selection-text">已选中 ${selectedIds.size} 个</span>
@@ -74,9 +177,9 @@ export function renderAccountsView(
           </div>
           <div class="quick-select-wrapper">
             <span class="quick-select-label">快速选择:</span>
-            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-15" title="选择15个未使用账号">15个</button>
-            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-35" title="选择35个未使用账号">35个</button>
-            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-custom" title="自定义选择数量">自定义</button>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-15" title="选择15个未使用、未卖出、未封禁账号">15个</button>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-35" title="选择35个未使用、未卖出、未封禁账号">35个</button>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-custom" title="自定义选择未使用、未卖出、未封禁账号数量">自定义</button>
           </div>
           <div class="toolbar-batch-actions">
             <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-notes-btn" title="批量编辑备注" ${selectedIds.size === 0 ? 'disabled' : ''}>
@@ -139,24 +242,15 @@ export function renderAccountsView(
 
       ${isFilterExpanded ? renderFilterPanel() : ''}
 
-      ${filteredAccounts.length > 0 ? `
-        ${usePagination ? `
-          <!-- 分页模式提示 -->
-          <div style="padding: 8px 16px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.16); border-radius: 8px; margin: 0 16px 16px; font-size: 13px; color: var(--text-secondary);">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M12 16v-4M12 8h.01"></path>
-            </svg>
-            <strong>性能优化模式：</strong>检测到 ${filteredAccounts.length} 个账号，已启用分页加载以提升性能。
-          </div>
-        ` : ''}
-        <div class="${viewMode === 'grid' ? 'account-grid' : 'account-list'}" id="account-grid" data-use-pagination="${usePagination}">
-          ${!usePagination ? filteredAccounts.map(account => viewMode === 'grid' ? renderAccountCard(account, selectedIds.has(account.id)) : renderAccountListItem(account, selectedIds.has(account.id))).join('') : '<!-- 分页内容将由 JS 动态加载 -->'}
+      ${totalAccounts > 0 ? `
+        <div class="${viewMode === 'grid' ? 'account-grid' : 'account-list'}" id="account-grid" data-current-page="${currentPage}" data-page-size="${pagination.pageSize}">
+          ${pageAccounts.map(account => viewMode === 'grid' ? renderAccountCard(account, selectedIds.has(account.id)) : renderAccountListItem(account, selectedIds.has(account.id))).join('')}
         </div>
+        ${renderPaginationControls(totalAccounts, currentPage, pagination.pageSize)}
       ` : `
         <div class="empty-state">
           <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${filter.search || Object.keys(filter).length > 1 ? 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' : 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'}" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${filter.search || Object.keys(filter).length > 1 ? 'M21 21l-6-6m2-5a7 7 0 11-14 0 0114 0z' : 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'}" />
           </svg>
           <h3 class="empty-title">${filter.search || Object.keys(filter).length > 1 ? '未找到匹配的账号' : '暂无账号'}</h3>
           <p class="empty-text">${filter.search || Object.keys(filter).length > 1 ? '尝试调整筛选条件' : '点击下方按钮添加第一个账号'}</p>

@@ -10,8 +10,6 @@ import { attachTitlebarEvents } from './handlers/titlebar-events'
 import { attachAccountsEvents } from './handlers/accounts-events'
 import { attachAccountCardEvents } from './handlers/account-card-events'
 import { toggleSelection, updateSelectionUI } from './managers/selection-manager'
-import { updateAccountList } from './managers/filter-manager'
-import { initPaginatedAccountList, updatePaginatedAccountList } from './managers/pagination-manager'
 import {
   autoImportCurrentAccount,
   handleAccountAction
@@ -21,15 +19,40 @@ import { REPOSITORY_URL, updateService, type UpdateInfo } from './services/updat
 import logoSvg from './assets/logo.svg'
 import kiroIconSvg from './assets/kiro-icon.svg'
 
+const ACCOUNT_PAGE_SIZE_KEY = 'account_page_size'
+const DEFAULT_ACCOUNT_PAGE_SIZE = 50
+const ACCOUNT_PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+
 export class AccountManager {
   private container: HTMLElement
   private selectedIds: Set<string> = new Set()
   private isFilterExpanded: boolean = false
   private unsubscribe: (() => void) | null = null
   private syncInterval: NodeJS.Timeout | null = null
+  private accountCurrentPage: number = 1
+  private accountPageSize: number = DEFAULT_ACCOUNT_PAGE_SIZE
+  private lastFilterKey: string = ''
 
   constructor(container: HTMLElement) {
     this.container = container
+    this.accountPageSize = this.loadAccountPageSize()
+  }
+
+  private loadAccountPageSize(): number {
+    const saved = Number(localStorage.getItem(ACCOUNT_PAGE_SIZE_KEY))
+    return ACCOUNT_PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_ACCOUNT_PAGE_SIZE
+  }
+
+  private getFilterKey(): string {
+    return JSON.stringify(accountStore.getFilter())
+  }
+
+  private getAccountTotalPages(): number {
+    return Math.max(1, Math.ceil(accountStore.getFilteredAccounts().length / this.accountPageSize))
+  }
+
+  private normalizeAccountPage() {
+    this.accountCurrentPage = Math.min(Math.max(1, this.accountCurrentPage), this.getAccountTotalPages())
   }
 
   async init() {
@@ -38,7 +61,15 @@ export class AccountManager {
     // 同步本地激活账号
     await accountStore.syncActiveAccountFromLocal()
 
+    this.lastFilterKey = this.getFilterKey()
     this.unsubscribe = accountStore.subscribe(() => {
+      const nextFilterKey = this.getFilterKey()
+      if (nextFilterKey !== this.lastFilterKey) {
+        this.accountCurrentPage = 1
+        this.lastFilterKey = nextFilterKey
+      }
+
+      this.normalizeAccountPage()
       this.renderContent()
       // 账号数据或激活状态变化时更新当前账号显示
       this.updateCurrentAccountDisplay()
@@ -101,30 +132,9 @@ export class AccountManager {
     const activeView = this.container.querySelector('.sidebar-link.active')?.getAttribute('data-view')
     if (activeView !== 'accounts') return
 
-    // 批量移除DOM节点（使用 requestAnimationFrame 优化性能）
-    requestAnimationFrame(() => {
-      accountIds.forEach(accountId => {
-        const cardElement = this.container.querySelector(`[data-account-id="${accountId}"]`)
-        if (cardElement) {
-          cardElement.remove()
-        }
-
-        // 从选中列表中移除
-        this.selectedIds.delete(accountId)
-      })
-
-      console.log(`[批量删除] 已移除 ${accountIds.length} 个DOM节点`)
-
-      // 更新选中状态UI
-      this.updateSelectionUI()
-
-      // 检查是否还有账号，如果没有显示空状态
-      const accountGrid = this.container.querySelector('#account-grid')
-      if (accountGrid && accountGrid.children.length === 0) {
-        // 重新渲染以显示空状态
-        this.renderContent()
-      }
-    })
+    accountIds.forEach(accountId => this.selectedIds.delete(accountId))
+    this.normalizeAccountPage()
+    this.renderContent()
   }
 
   public destroy() {
@@ -201,34 +211,9 @@ export class AccountManager {
     const activeView = this.container.querySelector('.sidebar-link.active')?.getAttribute('data-view')
     if (activeView !== 'accounts') return
 
-    // 查找并移除对应的账号卡片
-    const cardElement = this.container.querySelector(`[data-account-id="${accountId}"]`)
-    if (cardElement) {
-      // 添加淡出动画
-      cardElement.classList.add('deleting')
-
-      // 延迟移除DOM，让动画播放完成
-      setTimeout(() => {
-        cardElement.remove()
-        console.log('[删除账号] DOM节点已移除')
-
-        // 从选中列表中移除
-        this.selectedIds.delete(accountId)
-
-        // 更新选中状态UI
-        this.updateSelectionUI()
-
-        // 检查是否还有账号，如果没有显示空状态
-        const accountGrid = this.container.querySelector('#account-grid')
-        if (accountGrid && accountGrid.children.length === 0) {
-          const contentBody = this.container.querySelector('.content-body')
-          if (contentBody) {
-            // 重新渲染以显示空状态
-            this.renderContent()
-          }
-        }
-      }, 300) // 动画时长300ms
-    }
+    this.selectedIds.delete(accountId)
+    this.normalizeAccountPage()
+    this.renderContent()
   }
 
   public render() {
@@ -395,25 +380,20 @@ export class AccountManager {
 
   private renderAccountsView(container: Element) {
     const settings = accountStore.getSettings()
+    this.normalizeAccountPage()
+
     container.innerHTML = renderAccountsView(
       this.selectedIds,
       this.isFilterExpanded,
-      settings.viewMode
+      settings.viewMode,
+      {
+        currentPage: this.accountCurrentPage,
+        pageSize: this.accountPageSize
+      }
     )
 
     this.attachAccountsEvents()
-
-    // 如果启用了分页，初始化分页渲染
-    const filteredAccounts = accountStore.getFilteredAccounts()
-    if (filteredAccounts.length > 100) {
-      initPaginatedAccountList(
-        container as HTMLElement,
-        filteredAccounts,
-        this.selectedIds,
-        settings.viewMode,
-        () => this.attachAccountCardEvents()
-      )
-    }
+    this.attachPaginationEvents()
   }
 
   private async renderSettingsView(container: Element) {
@@ -717,13 +697,100 @@ export class AccountManager {
   }
 
   private updateAccountList() {
-    const settings = accountStore.getSettings()
-    updateAccountList(
-      this.container,
-      this.selectedIds,
-      settings.viewMode,
-      () => this.attachAccountCardEvents()
-    )
+    const searchInput = this.container.querySelector('#search-input') as HTMLInputElement | null
+    const cursorPosition = searchInput?.selectionStart ?? searchInput?.value.length ?? 0
+    const contentArea = this.container.querySelector('#content-area')
+    if (!contentArea) return
+
+    this.accountCurrentPage = 1
+    this.renderAccountsView(contentArea)
+
+    requestAnimationFrame(() => {
+      const nextSearchInput = this.container.querySelector('#search-input') as HTMLInputElement | null
+      if (!nextSearchInput) return
+
+      const nextCursorPosition = Math.min(cursorPosition, nextSearchInput.value.length)
+      nextSearchInput.focus()
+      nextSearchInput.setSelectionRange(nextCursorPosition, nextCursorPosition)
+    })
+  }
+
+  private attachPaginationEvents() {
+    const pageButtons = this.container.querySelectorAll('[data-pagination-page]')
+    pageButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const page = Number((button as HTMLElement).dataset.paginationPage)
+        this.setAccountPage(page)
+      })
+    })
+
+    const actionButtons = this.container.querySelectorAll('[data-pagination-action]')
+    actionButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const action = (button as HTMLElement).dataset.paginationAction
+        this.handlePaginationAction(action)
+      })
+    })
+
+    const pageSizeSelect = this.container.querySelector('#account-page-size') as HTMLSelectElement | null
+    pageSizeSelect?.addEventListener('change', () => {
+      const pageSize = Number(pageSizeSelect.value)
+      if (!ACCOUNT_PAGE_SIZE_OPTIONS.includes(pageSize)) return
+
+      this.accountPageSize = pageSize
+      this.accountCurrentPage = 1
+      localStorage.setItem(ACCOUNT_PAGE_SIZE_KEY, String(pageSize))
+      this.renderContent()
+      this.scrollAccountsToTop()
+    })
+
+    const jumpInput = this.container.querySelector('#account-page-jump') as HTMLInputElement | null
+    jumpInput?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      this.jumpToInputPage()
+    })
+  }
+
+  private handlePaginationAction(action?: string) {
+    if (!action) return
+
+    const totalPages = this.getAccountTotalPages()
+    if (action === 'first') {
+      this.setAccountPage(1)
+    } else if (action === 'prev') {
+      this.setAccountPage(this.accountCurrentPage - 1)
+    } else if (action === 'next') {
+      this.setAccountPage(this.accountCurrentPage + 1)
+    } else if (action === 'last') {
+      this.setAccountPage(totalPages)
+    } else if (action === 'jump') {
+      this.jumpToInputPage()
+    }
+  }
+
+  private jumpToInputPage() {
+    const input = this.container.querySelector('#account-page-jump') as HTMLInputElement | null
+    if (!input) return
+
+    this.setAccountPage(Number(input.value))
+  }
+
+  private setAccountPage(page: number) {
+    if (!Number.isFinite(page)) return
+
+    const totalPages = this.getAccountTotalPages()
+    const nextPage = Math.min(Math.max(1, Math.floor(page)), totalPages)
+    if (nextPage === this.accountCurrentPage) return
+
+    this.accountCurrentPage = nextPage
+    this.renderContent()
+    this.scrollAccountsToTop()
+  }
+
+  private scrollAccountsToTop() {
+    const mainContent = this.container.querySelector('.main-content') as HTMLElement | null
+    mainContent?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   private async handleAccountAction(accountId: string, action: string) {
