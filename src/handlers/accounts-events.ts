@@ -245,6 +245,15 @@ function toggleFilter(type: string, value: string) {
       ...filter,
       idps: newValue.length > 0 ? newValue : undefined
     })
+  } else if (type === 'emailDomain') {
+    const current = filter.emailDomains || []
+    const newValue = current.includes(value)
+      ? current.filter(v => v !== value)
+      : [...current, value]
+    accountStore.setFilter({
+      ...filter,
+      emailDomains: newValue.length > 0 ? newValue : undefined
+    })
   } else if (type === 'sold') {
     if (value === 'only') {
       // 点击"仅已卖出"

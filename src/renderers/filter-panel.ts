@@ -5,6 +5,7 @@ interface FilterOptions {
   subscriptionTypes?: string[]
   statuses?: string[]
   idps?: string[]
+  emailDomains?: string[]
   usageMin?: number
   usageMax?: number
   daysRemainingMin?: number
@@ -47,6 +48,12 @@ export function renderFilterPanel(): string {
   // 统计包含"已卖出"标签的账号数量
   const soldCount = accountStore.getAccounts().filter(a => a.tags.includes('sold')).length
 
+  // 获取邮箱后缀统计并排序（按数量降序）
+  const emailDomainOptions = Object.entries(stats.byEmailDomain || {})
+    .sort((a, b) => b[1] - a[1]) // 按数量降序排序
+    .map(([domain, count]) => ({ value: domain, label: domain, count }))
+    .slice(0, 10) // 只显示前10个最常见的后缀
+
   return `
     <div class="filter-panel">
       <div class="filter-row">
@@ -88,6 +95,21 @@ export function renderFilterPanel(): string {
             `).join('')}
           </div>
         </div>
+
+        ${emailDomainOptions.length > 0 ? `
+          <div class="filter-group">
+            <span class="filter-label">邮箱后缀:</span>
+            <div class="filter-buttons">
+              ${emailDomainOptions.map(opt => `
+                <button class="filter-btn ${filter.emailDomains?.includes(opt.value) ? 'active' : ''}"
+                        data-filter-type="emailDomain"
+                        data-filter-value="${opt.value}">
+                  @${opt.label}(${opt.count})
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
 
         <div class="filter-group">
           <span class="filter-label">卖出:</span>

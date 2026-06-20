@@ -17,6 +17,7 @@ export interface AccountFilter {
   importDateEnd?: number // 导入结束日期时间戳
   isSold?: boolean // 筛选已卖出账号
   showSoldOnly?: boolean // 仅显示已卖出
+  emailDomains?: string[] // 邮箱后缀筛选
 }
 
 export interface AccountCredentials {

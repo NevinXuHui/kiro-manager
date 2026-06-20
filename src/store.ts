@@ -269,6 +269,15 @@ class AccountStore {
       result = result.filter(a => this.filter.idps!.includes(a.idp))
     }
 
+    // 应用邮箱后缀筛选
+    if (this.filter.emailDomains?.length) {
+      result = result.filter(a => {
+        if (!a.email || !a.email.includes('@')) return false
+        const domain = a.email.split('@')[1]?.toLowerCase()
+        return domain && this.filter.emailDomains!.includes(domain)
+      })
+    }
+
     // 应用使用量范围筛选
     if (this.filter.usageMin !== undefined) {
       result = result.filter(a => a.usage.percentUsed >= this.filter.usageMin!)
@@ -324,18 +333,28 @@ class AccountStore {
     }
 
     const byIdp: Record<string, number> = {}
+    const byEmailDomain: Record<string, number> = {}
 
     this.accounts.forEach(account => {
       bySubscription[account.subscription.type] = (bySubscription[account.subscription.type] || 0) + 1
       byStatus[account.status] = (byStatus[account.status] || 0) + 1
       byIdp[account.idp] = (byIdp[account.idp] || 0) + 1
+
+      // 统计邮箱后缀
+      if (account.email && account.email.includes('@')) {
+        const domain = account.email.split('@')[1]?.toLowerCase()
+        if (domain) {
+          byEmailDomain[domain] = (byEmailDomain[domain] || 0) + 1
+        }
+      }
     })
 
     return {
       total: this.accounts.length,
       bySubscription,
       byStatus,
-      byIdp
+      byIdp,
+      byEmailDomain
     }
   }
 
