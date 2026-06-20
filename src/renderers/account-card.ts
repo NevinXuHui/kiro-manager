@@ -97,9 +97,10 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
   const subscriptionColor = getSubscriptionColor(account.subscription.type)
   const isHighUsage = account.usage.percentUsed > 0.8
   const isActive = accountStore.getActiveAccountId() === account.id
+  const isSold = account.tags.includes('sold')
 
   return `
-    <div class="account-card ${isActive ? 'active-account' : ''} ${account.isSold ? 'sold-account' : ''}" data-account-id="${account.id}" data-status="${account.status}">
+    <div class="account-card ${isActive ? 'active-account' : ''} ${isSold ? 'sold-account' : ''}" data-account-id="${account.id}" data-status="${account.status}">
       <!-- 头部区域 -->
       <div class="card-header">
         <div class="checkbox-wrapper">
@@ -112,7 +113,6 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
           <div class="meta-badges">
             <span class="badge ${subscriptionColor}">${account.subscription.title || account.subscription.type}</span>
             <span class="badge badge-secondary">${account.idp}</span>
-            ${account.isSold ? '<span class="badge badge-sold">已卖出</span>' : ''}
             <div class="status-dot">${getStatusText(account.status)}</div>
           </div>
         </div>
@@ -150,6 +150,17 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
               </span>
             ` : ''
           }).join('')}
+          ${account.soldNote ? `
+            <span class="sold-note-text" title="${account.soldNote}">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              ${account.soldNote}
+            </span>
+          ` : ''}
         </div>
       ` : ''}
 
@@ -239,9 +250,10 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
   const subscriptionColor = getSubscriptionColor(account.subscription.type)
   const isHighUsage = account.usage.percentUsed > 0.8
   const isActive = accountStore.getActiveAccountId() === account.id
+  const isSold = account.tags.includes('sold')
 
   return `
-    <div class="account-list-item ${isActive ? 'active-account' : ''} ${account.isSold ? 'sold-account' : ''}" data-account-id="${account.id}" data-status="${account.status}">
+    <div class="account-list-item ${isActive ? 'active-account' : ''} ${isSold ? 'sold-account' : ''}" data-account-id="${account.id}" data-status="${account.status}">
       <div class="list-item-left">
         <div class="custom-checkbox ${isSelected ? 'checked' : ''}" data-action="toggle-select">
           ${isSelected ? '<svg fill="currentColor" viewBox="0 0 20 20" width="12" height="12"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>' : ''}
@@ -250,7 +262,6 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
           <div class="list-item-email">${displayEmail}</div>
           <div class="list-item-nickname-row">
             ${displayNickname ? `<span class="list-item-nickname">${displayNickname}</span>` : ''}
-            ${account.isSold ? '<span class="badge badge-sold badge-small">已卖出</span>' : ''}
             <div class="status-dot">${getStatusText(account.status)}</div>
           </div>
           ${account.tags && account.tags.length > 0 ? `

@@ -93,10 +93,7 @@ export interface Account {
   status: AccountStatus
   lastError?: string
   isActive: boolean
-  isSold?: boolean // 是否已卖出
-  soldAt?: number // 卖出时间戳
-  soldPrice?: number // 卖出价格（可选）
-  soldNote?: string // 卖出备注（可选）
+  soldNote?: string // 卖出备注（与已卖出标签配套使用）
   createdAt: number
   lastUsedAt: number
 }

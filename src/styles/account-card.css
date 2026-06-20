@@ -372,6 +372,22 @@
   border: 1px solid;
 }
 
+/* 卖出备注文本样式 */
+.sold-note-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(249, 115, 22, 0.1);
+  color: #ea580c;
+  border-radius: 4px;
+  font-size: 11px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 编辑对话框中的备注样式 */
 .notes-container {
   display: flex;

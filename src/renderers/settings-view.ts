@@ -126,6 +126,36 @@ export async function renderSettingsView(): Promise<string> {
       </div>
 
       <div class="settings-section">
+        <h3 class="settings-section-title">备注管理</h3>
+        <div class="settings-item-info" style="margin-bottom: 12px;">
+          <div class="settings-item-desc">管理账号备注标签，可以编辑名称、修改颜色或删除标签</div>
+        </div>
+        <div id="notes-management-container">
+          ${accountStore.getNotes().map(note => `
+            <div class="note-management-item" data-note-id="${note.id}">
+              <div class="note-preview" style="background-color: ${note.color}20; color: ${note.color}; border-color: ${note.color}40;">
+                <span class="note-preview-name">${note.name}</span>
+                ${note.id === 'sold' ? '<span class="note-system-badge">系统</span>' : ''}
+              </div>
+              <div class="note-actions">
+                ${note.id !== 'sold' ? `
+                  <button class="ui-btn ui-btn-secondary ui-btn-sm" onclick="window.editNote('${note.id}')">编辑</button>
+                  <button class="ui-btn ui-btn-danger ui-btn-sm" onclick="window.deleteNote('${note.id}')">删除</button>
+                ` : '<span style="font-size: 11px; color: var(--text-muted);">系统预设标签不可删除</span>'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <button class="ui-btn ui-btn-primary ui-btn-sm" style="margin-top: 12px;" onclick="window.createNewNote()">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          新建备注标签
+        </button>
+      </div>
+
+      <div class="settings-section">
         <h3 class="settings-section-title">自动刷新</h3>
         <div class="settings-item">
           <div class="settings-item-info">

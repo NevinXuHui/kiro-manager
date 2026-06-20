@@ -62,13 +62,14 @@ class AccountStore {
     if (savedNotes) {
       this.notes = JSON.parse(savedNotes)
     } else {
-      // 初始化默认备注
+      // 初始化默认备注（包括"已卖出"）
       this.notes = [
         { id: '1', name: '主力账号', color: '#3b82f6' },
         { id: '2', name: '备用账号', color: '#10b981' },
         { id: '3', name: '测试账号', color: '#f59e0b' },
         { id: '4', name: '已过期', color: '#ef4444' },
-        { id: '5', name: '团队共享', color: '#8b5cf6' }
+        { id: '5', name: '团队共享', color: '#8b5cf6' },
+        { id: 'sold', name: '已卖出', color: '#f97316' }
       ]
       this.saveNotes()
     }
@@ -246,11 +247,11 @@ class AccountStore {
       )
     }
 
-    // 应用卖出状态筛选
+    // 应用卖出状态筛选（通过标签判断）
     if (this.filter.showSoldOnly === true) {
-      result = result.filter(a => a.isSold === true)
+      result = result.filter(a => a.tags.includes('sold'))
     } else if (this.filter.showSoldOnly === false) {
-      result = result.filter(a => !a.isSold)
+      result = result.filter(a => !a.tags.includes('sold'))
     }
 
     // 应用订阅类型筛选

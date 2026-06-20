@@ -61,17 +61,6 @@ export function showEditAccountDialog(account: Account): void {
           </button>
         </div>
         <div class="form-section">
-          <label class="form-label">
-            <input type="checkbox" id="edit-account-sold" ${account.isSold ? 'checked' : ''} style="margin-right: 6px;">
-            标记为已卖出
-          </label>
-          ${account.isSold ? `
-            <div style="margin-top: 8px; padding: 8px; background: var(--slate-50); border-radius: 4px; font-size: 12px; color: var(--text-muted);">
-              卖出时间: ${account.soldAt ? new Date(account.soldAt).toLocaleString('zh-CN') : '未记录'}
-            </div>
-          ` : ''}
-        </div>
-        <div class="form-section">
           <label class="form-label">Access Token <span class="required">*</span></label>
           <textarea class="form-input form-textarea" id="edit-account-access-token" rows="3">${account.credentials.accessToken}</textarea>
         </div>
@@ -179,7 +168,6 @@ export function showEditAccountDialog(account: Account): void {
     const idp = (document.getElementById('edit-account-idp') as HTMLInputElement)?.value
     const accessToken = (document.getElementById('edit-account-access-token') as HTMLTextAreaElement)?.value
     const refreshToken = (document.getElementById('edit-account-refresh-token') as HTMLTextAreaElement)?.value
-    const isSold = (document.getElementById('edit-account-sold') as HTMLInputElement)?.checked
 
     // 获取选中的备注
     const selectedNotes: string[] = []
@@ -212,7 +200,7 @@ export function showEditAccountDialog(account: Account): void {
       return
     }
 
-    const updates: any = {
+    accountStore.updateAccount(account.id, {
       email,
       nickname: nickname || undefined,
       idp: idp as any,
@@ -222,17 +210,7 @@ export function showEditAccountDialog(account: Account): void {
         accessToken,
         refreshToken: refreshToken || undefined
       }
-    }
-
-    // 更新卖出状态
-    if (isSold !== account.isSold) {
-      updates.isSold = isSold
-      if (isSold && !account.soldAt) {
-        updates.soldAt = Date.now()
-      }
-    }
-
-    accountStore.updateAccount(account.id, updates)
+    })
 
     window.UI?.toast.success('账号更新成功')
     window.UI?.modal.close(modal)

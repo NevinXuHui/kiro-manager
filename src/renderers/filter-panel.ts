@@ -44,7 +44,8 @@ export function renderFilterPanel(): string {
     { value: 'Github', label: 'GitHub', count: stats.byIdp.Github || 0 }
   ]
 
-  const soldCount = accountStore.getAccounts().filter(a => a.isSold).length
+  // 统计包含"已卖出"标签的账号数量
+  const soldCount = accountStore.getAccounts().filter(a => a.tags.includes('sold')).length
 
   return `
     <div class="filter-panel">
