@@ -128,22 +128,24 @@ export function generateExportContent(
 
     switch (format) {
       case 'json':
-        const exportData = {
-          version: '1.0',
-          exportedAt: new Date().toISOString(),
-          accounts: includeCredentials
-            ? accounts
-            : accounts.map(acc => ({
-                ...acc,
-                credentials: {
-                  ...acc.credentials,
-                  accessToken: '',
-                  refreshToken: '',
-                  csrfToken: ''
-                }
-              }))
-        }
-        return JSON.stringify(exportData, null, 2)
+        // 转换为简化格式的数组
+        const simplifiedAccounts = accounts.map(acc => {
+          const simplified = convertAccountToSimplifiedFormat(acc)
+
+          // 如果不包含凭证，清空敏感字段
+          if (!includeCredentials) {
+            return {
+              ...simplified,
+              clientId: '',
+              clientSecret: '',
+              refreshToken: ''
+            }
+          }
+
+          return simplified
+        })
+
+        return JSON.stringify(simplifiedAccounts, null, 2)
 
       case 'txt':
         if (includeCredentials) {
