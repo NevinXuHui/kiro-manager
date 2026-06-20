@@ -114,6 +114,22 @@
   opacity: 1;
 }
 
+/* 日期时间输入框样式 */
+.filter-datetime-input {
+  width: 170px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.filter-datetime-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.filter-datetime-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .filter-separator {
   font-size: 12px;
   color: var(--text-muted);

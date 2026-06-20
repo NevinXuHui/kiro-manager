@@ -122,7 +122,7 @@ export function attachAccountsEvents(
     })
   }
 
-  // 导入日期范围筛选
+  // 导入日期范围筛选（支持时间）
   const importDateStartInput = container.querySelector('#import-date-start') as HTMLInputElement
   const importDateEndInput = container.querySelector('#import-date-end') as HTMLInputElement
   if (importDateStartInput && importDateEndInput) {
@@ -130,19 +130,19 @@ export function attachAccountsEvents(
       const filter = accountStore.getFilter()
       accountStore.setFilter({
         ...filter,
-        importDateStart: importDateStartInput.value ? new Date(importDateStartInput.value).setHours(0, 0, 0, 0) : undefined
+        importDateStart: importDateStartInput.value ? new Date(importDateStartInput.value).getTime() : undefined
       })
     })
     importDateEndInput.addEventListener('change', () => {
       const filter = accountStore.getFilter()
       accountStore.setFilter({
         ...filter,
-        importDateEnd: importDateEndInput.value ? new Date(importDateEndInput.value).setHours(23, 59, 59, 999) : undefined
+        importDateEnd: importDateEndInput.value ? new Date(importDateEndInput.value).getTime() : undefined
       })
     })
   }
 
-  // 导出日期范围筛选
+  // 导出日期范围筛选（支持时间）
   const exportDateStartInput = container.querySelector('#export-date-start') as HTMLInputElement
   const exportDateEndInput = container.querySelector('#export-date-end') as HTMLInputElement
   if (exportDateStartInput && exportDateEndInput) {
@@ -150,14 +150,14 @@ export function attachAccountsEvents(
       const filter = accountStore.getFilter()
       accountStore.setFilter({
         ...filter,
-        exportDateStart: exportDateStartInput.value ? new Date(exportDateStartInput.value).setHours(0, 0, 0, 0) : undefined
+        exportDateStart: exportDateStartInput.value ? new Date(exportDateStartInput.value).getTime() : undefined
       })
     })
     exportDateEndInput.addEventListener('change', () => {
       const filter = accountStore.getFilter()
       accountStore.setFilter({
         ...filter,
-        exportDateEnd: exportDateEndInput.value ? new Date(exportDateEndInput.value).setHours(23, 59, 59, 999) : undefined
+        exportDateEnd: exportDateEndInput.value ? new Date(exportDateEndInput.value).getTime() : undefined
       })
     })
   }

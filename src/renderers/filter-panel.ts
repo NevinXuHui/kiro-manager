@@ -161,22 +161,22 @@ export function renderFilterPanel(): string {
         <div class="filter-group">
           <span class="filter-label">导入日期:</span>
           <div class="filter-range">
-            <input type="date" placeholder="开始日期" class="filter-input filter-date-input"
-                   id="import-date-start" value="${filter.importDateStart ? new Date(filter.importDateStart).toISOString().split('T')[0] : ''}">
+            <input type="datetime-local" placeholder="开始时间" class="filter-input filter-datetime-input"
+                   id="import-date-start" value="${filter.importDateStart ? new Date(filter.importDateStart).toISOString().slice(0, 16) : ''}">
             <span class="filter-separator">-</span>
-            <input type="date" placeholder="结束日期" class="filter-input filter-date-input"
-                   id="import-date-end" value="${filter.importDateEnd ? new Date(filter.importDateEnd).toISOString().split('T')[0] : ''}">
+            <input type="datetime-local" placeholder="结束时间" class="filter-input filter-datetime-input"
+                   id="import-date-end" value="${filter.importDateEnd ? new Date(filter.importDateEnd).toISOString().slice(0, 16) : ''}">
           </div>
         </div>
 
         <div class="filter-group">
           <span class="filter-label">导出日期:</span>
           <div class="filter-range">
-            <input type="date" placeholder="开始日期" class="filter-input filter-date-input"
-                   id="export-date-start" value="${filter.exportDateStart ? new Date(filter.exportDateStart).toISOString().split('T')[0] : ''}">
+            <input type="datetime-local" placeholder="开始时间" class="filter-input filter-datetime-input"
+                   id="export-date-start" value="${filter.exportDateStart ? new Date(filter.exportDateStart).toISOString().slice(0, 16) : ''}">
             <span class="filter-separator">-</span>
-            <input type="date" placeholder="结束日期" class="filter-input filter-date-input"
-                   id="export-date-end" value="${filter.exportDateEnd ? new Date(filter.exportDateEnd).toISOString().split('T')[0] : ''}">
+            <input type="datetime-local" placeholder="结束时间" class="filter-input filter-datetime-input"
+                   id="export-date-end" value="${filter.exportDateEnd ? new Date(filter.exportDateEnd).toISOString().slice(0, 16) : ''}">
           </div>
         </div>
       </div>
