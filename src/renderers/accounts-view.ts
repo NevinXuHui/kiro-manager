@@ -72,6 +72,12 @@ export function renderAccountsView(
               <span class="selection-text">已选中 ${selectedIds.size} 个</span>
             ` : ''}
           </div>
+          <div class="quick-select-wrapper">
+            <span class="quick-select-label">快速选择:</span>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-15" title="选择15个未使用账号">15个</button>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-35" title="选择35个未使用账号">35个</button>
+            <button class="ui-btn ui-btn-xs ui-btn-secondary" id="quick-select-custom" title="自定义选择数量">自定义</button>
+          </div>
           <div class="toolbar-batch-actions">
             <button class="ui-btn ui-btn-sm ui-btn-secondary" id="batch-notes-btn" title="批量编辑备注" ${selectedIds.size === 0 ? 'disabled' : ''}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 0.25rem">

@@ -177,6 +177,38 @@ export function attachAccountsEvents(
     })
   }
 
+  // 快速选择 15 个
+  const quickSelect15Btn = container.querySelector('#quick-select-15')
+  if (quickSelect15Btn) {
+    quickSelect15Btn.addEventListener('click', () => {
+      quickSelectUnusedAccounts(15, selectedIds, onUpdateSelectionUI)
+    })
+  }
+
+  // 快速选择 35 个
+  const quickSelect35Btn = container.querySelector('#quick-select-35')
+  if (quickSelect35Btn) {
+    quickSelect35Btn.addEventListener('click', () => {
+      quickSelectUnusedAccounts(35, selectedIds, onUpdateSelectionUI)
+    })
+  }
+
+  // 快速选择自定义数量
+  const quickSelectCustomBtn = container.querySelector('#quick-select-custom')
+  if (quickSelectCustomBtn) {
+    quickSelectCustomBtn.addEventListener('click', () => {
+      const input = prompt('请输入要选择的账号数量：')
+      if (input) {
+        const count = parseInt(input, 10)
+        if (isNaN(count) || count <= 0) {
+          window.UI?.toast.error('请输入有效的数量')
+          return
+        }
+        quickSelectUnusedAccounts(count, selectedIds, onUpdateSelectionUI)
+      }
+    })
+  }
+
   const batchCheckBtn = container.querySelector('#batch-check-btn')
   if (batchCheckBtn) {
     batchCheckBtn.addEventListener('click', () => handleBatchCheck(selectedIds))
@@ -269,4 +301,45 @@ function toggleFilter(type: string, value: string) {
       })
     }
   }
+}
+
+/**
+ * 快速选择未使用的账号
+ * @param count 要选择的数量
+ * @param selectedIds 当前选中的账号ID集合
+ * @param onUpdateSelectionUI 更新选中状态UI的回调
+ */
+function quickSelectUnusedAccounts(
+  count: number,
+  selectedIds: Set<string>,
+  onUpdateSelectionUI: () => void
+) {
+  const filteredAccounts = accountStore.getFilteredAccounts()
+
+  // 筛选出未使用过用量的账号（current === 0）
+  const unusedAccounts = filteredAccounts.filter(account => {
+    return account.usage.current === 0
+  })
+
+  if (unusedAccounts.length === 0) {
+    window.UI?.toast.warning('当前筛选结果中没有未使用的账号')
+    return
+  }
+
+  // 清空当前选中
+  selectedIds.clear()
+
+  // 选择指定数量的账号
+  const selectCount = Math.min(count, unusedAccounts.length)
+  for (let i = 0; i < selectCount; i++) {
+    selectedIds.add(unusedAccounts[i].id)
+  }
+
+  onUpdateSelectionUI()
+
+  const message = selectCount < count
+    ? `已选择 ${selectCount} 个未使用账号（仅有 ${unusedAccounts.length} 个可选）`
+    : `已选择 ${selectCount} 个未使用账号`
+
+  window.UI?.toast.success(message)
 }

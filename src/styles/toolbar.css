@@ -87,6 +87,25 @@
   white-space: nowrap;
 }
 
+.quick-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-color);
+}
+
+.quick-select-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.quick-select-wrapper .ui-btn-xs {
+  min-width: 50px;
+}
+
 .search-box {
   flex: 1;
   max-width: 280px;
