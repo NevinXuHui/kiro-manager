@@ -3,16 +3,42 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-// 获取数据目录路径
+// 获取工程 data 目录路径
 fn get_data_dir() -> Result<PathBuf, String> {
+    let tauri_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let project_dir = tauri_dir
+        .parent()
+        .ok_or_else(|| "无法获取工程目录".to_string())?;
+    let data_dir = project_dir.join("data");
+
+    fs::create_dir_all(&data_dir).map_err(|e| format!("创建数据目录失败: {}", e))?;
+
+    Ok(data_dir)
+}
+
+// 获取旧版本数据目录路径，用于自动迁移已有账号数据
+fn get_legacy_data_dir() -> Result<PathBuf, String> {
     let home_dir = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| "无法获取用户目录".to_string())?;
-    
-    let data_dir = PathBuf::from(home_dir).join("kiro manager");
-    fs::create_dir_all(&data_dir).map_err(|e| format!("创建数据目录失败: {}", e))?;
-    
-    Ok(data_dir)
+
+    Ok(PathBuf::from(home_dir).join("kiro manager"))
+}
+
+// 首次切换到工程 data 目录时，把旧目录里的账号数据复制过来，避免看起来像数据丢失
+fn migrate_legacy_accounts_if_needed(data_dir: &PathBuf) -> Result<(), String> {
+    let accounts_file = data_dir.join("accounts.json");
+    if accounts_file.exists() {
+        return Ok(());
+    }
+
+    let legacy_accounts_file = get_legacy_data_dir()?.join("accounts.json");
+    if legacy_accounts_file.exists() {
+        fs::copy(&legacy_accounts_file, &accounts_file)
+            .map_err(|e| format!("迁移账号数据失败: {}", e))?;
+    }
+
+    Ok(())
 }
 
 // 保存自定义 Logo
@@ -60,8 +86,10 @@ pub async fn delete_custom_logo() -> Result<(), String> {
 #[tauri::command]
 pub async fn load_accounts() -> Result<String, String> {
     let data_dir = get_data_dir()?;
+    migrate_legacy_accounts_if_needed(&data_dir)?;
+
     let accounts_file = data_dir.join("accounts.json");
-    
+
     if !accounts_file.exists() {
         return Ok("[]".to_string());
     }

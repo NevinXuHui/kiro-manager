@@ -49,6 +49,7 @@ Thumbs.db
 .DS_Store
 
 # Local data
+data/
 *.db
 *.sqlite
 *.sqlite3
