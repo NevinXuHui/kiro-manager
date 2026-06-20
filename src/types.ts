@@ -15,11 +15,13 @@ export interface AccountFilter {
   daysRemainingMax?: number
   importDateStart?: number // 导入开始日期时间戳
   importDateEnd?: number // 导入结束日期时间戳
+  enableImportDateFilter?: boolean // 是否启用导入时间筛选
   isSold?: boolean // 筛选已卖出账号
   showSoldOnly?: boolean // 仅显示已卖出
   emailDomains?: string[] // 邮箱后缀筛选
   exportDateStart?: number // 导出开始日期时间戳
   exportDateEnd?: number // 导出结束日期时间戳
+  enableExportDateFilter?: boolean // 是否启用导出时间筛选
   showExportedOnly?: boolean // 仅显示已导出
 }
 

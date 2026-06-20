@@ -303,12 +303,14 @@ class AccountStore {
     }
 
     // 应用导入日期范围筛选
-    if (this.filter.importDateStart !== undefined) {
-      result = result.filter(a => a.createdAt >= this.filter.importDateStart!)
-    }
+    if (this.filter.enableImportDateFilter) {
+      if (this.filter.importDateStart !== undefined) {
+        result = result.filter(a => a.createdAt >= this.filter.importDateStart!)
+      }
 
-    if (this.filter.importDateEnd !== undefined) {
-      result = result.filter(a => a.createdAt <= this.filter.importDateEnd!)
+      if (this.filter.importDateEnd !== undefined) {
+        result = result.filter(a => a.createdAt <= this.filter.importDateEnd!)
+      }
     }
 
     // 应用导出状态筛选
@@ -319,12 +321,14 @@ class AccountStore {
     }
 
     // 应用导出日期范围筛选
-    if (this.filter.exportDateStart !== undefined) {
-      result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt >= this.filter.exportDateStart!)
-    }
+    if (this.filter.enableExportDateFilter) {
+      if (this.filter.exportDateStart !== undefined) {
+        result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt >= this.filter.exportDateStart!)
+      }
 
-    if (this.filter.exportDateEnd !== undefined) {
-      result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt <= this.filter.exportDateEnd!)
+      if (this.filter.exportDateEnd !== undefined) {
+        result = result.filter(a => a.lastExportedAt !== undefined && a.lastExportedAt <= this.filter.exportDateEnd!)
+      }
     }
 
     return result

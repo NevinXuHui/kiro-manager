@@ -126,40 +126,42 @@ export function attachAccountsEvents(
   const importDateStartInput = container.querySelector('#import-date-start') as HTMLInputElement
   const importDateEndInput = container.querySelector('#import-date-end') as HTMLInputElement
   if (importDateStartInput && importDateEndInput) {
-    importDateStartInput.addEventListener('change', () => {
+    const updateImportDateFilter = () => {
       const filter = accountStore.getFilter()
+      const importDateStart = importDateStartInput.value ? new Date(importDateStartInput.value).getTime() : undefined
+      const importDateEnd = importDateEndInput.value ? new Date(importDateEndInput.value).getTime() : undefined
+
       accountStore.setFilter({
         ...filter,
-        importDateStart: importDateStartInput.value ? new Date(importDateStartInput.value).getTime() : undefined
+        importDateStart,
+        importDateEnd,
+        enableImportDateFilter: importDateStart !== undefined || importDateEnd !== undefined ? true : undefined
       })
-    })
-    importDateEndInput.addEventListener('change', () => {
-      const filter = accountStore.getFilter()
-      accountStore.setFilter({
-        ...filter,
-        importDateEnd: importDateEndInput.value ? new Date(importDateEndInput.value).getTime() : undefined
-      })
-    })
+    }
+
+    importDateStartInput.addEventListener('change', updateImportDateFilter)
+    importDateEndInput.addEventListener('change', updateImportDateFilter)
   }
 
   // 导出日期范围筛选（支持时间）
   const exportDateStartInput = container.querySelector('#export-date-start') as HTMLInputElement
   const exportDateEndInput = container.querySelector('#export-date-end') as HTMLInputElement
   if (exportDateStartInput && exportDateEndInput) {
-    exportDateStartInput.addEventListener('change', () => {
+    const updateExportDateFilter = () => {
       const filter = accountStore.getFilter()
+      const exportDateStart = exportDateStartInput.value ? new Date(exportDateStartInput.value).getTime() : undefined
+      const exportDateEnd = exportDateEndInput.value ? new Date(exportDateEndInput.value).getTime() : undefined
+
       accountStore.setFilter({
         ...filter,
-        exportDateStart: exportDateStartInput.value ? new Date(exportDateStartInput.value).getTime() : undefined
+        exportDateStart,
+        exportDateEnd,
+        enableExportDateFilter: exportDateStart !== undefined || exportDateEnd !== undefined ? true : undefined
       })
-    })
-    exportDateEndInput.addEventListener('change', () => {
-      const filter = accountStore.getFilter()
-      accountStore.setFilter({
-        ...filter,
-        exportDateEnd: exportDateEndInput.value ? new Date(exportDateEndInput.value).getTime() : undefined
-      })
-    })
+    }
+
+    exportDateStartInput.addEventListener('change', updateExportDateFilter)
+    exportDateEndInput.addEventListener('change', updateExportDateFilter)
   }
 
   const addBtns = container.querySelectorAll('#add-account-btn, #add-first-account-btn')
@@ -312,6 +314,16 @@ function toggleFilter(type: string, value: string) {
         showSoldOnly: filter.showSoldOnly === false ? undefined : false
       })
     }
+  } else if (type === 'importDateEnabled') {
+    accountStore.setFilter({
+      ...filter,
+      enableImportDateFilter: filter.enableImportDateFilter ? undefined : true
+    })
+  } else if (type === 'exportDateEnabled') {
+    accountStore.setFilter({
+      ...filter,
+      enableExportDateFilter: filter.enableExportDateFilter ? undefined : true
+    })
   } else if (type === 'exported') {
     if (value === 'only') {
       // 点击"仅已导出"

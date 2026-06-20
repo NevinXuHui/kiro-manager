@@ -12,11 +12,26 @@ interface FilterOptions {
   daysRemainingMax?: number
   importDateStart?: number
   importDateEnd?: number
+  enableImportDateFilter?: boolean
   exportDateStart?: number
   exportDateEnd?: number
+  enableExportDateFilter?: boolean
   showSoldOnly?: boolean
   showExportedOnly?: boolean
   search?: string
+}
+
+function formatDateTimeInput(timestamp?: number): string {
+  if (!timestamp) return ''
+
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
 /**
@@ -159,24 +174,40 @@ export function renderFilterPanel(): string {
 
       <div class="filter-row">
         <div class="filter-group">
-          <span class="filter-label">导入日期:</span>
+          <span class="filter-label">导入时间:</span>
+          <div class="filter-buttons">
+            <button class="filter-btn ${filter.enableImportDateFilter ? 'active' : ''}"
+                    data-filter-type="importDateEnabled"
+                    data-filter-value="toggle">
+              ${filter.enableImportDateFilter ? '已启用' : '未启用'}
+            </button>
+          </div>
           <div class="filter-range">
             <input type="datetime-local" placeholder="开始时间" class="filter-input filter-datetime-input"
-                   id="import-date-start" value="${filter.importDateStart ? new Date(filter.importDateStart).toISOString().slice(0, 16) : ''}">
+                   id="import-date-start" value="${formatDateTimeInput(filter.importDateStart)}">
             <span class="filter-separator">-</span>
             <input type="datetime-local" placeholder="结束时间" class="filter-input filter-datetime-input"
-                   id="import-date-end" value="${filter.importDateEnd ? new Date(filter.importDateEnd).toISOString().slice(0, 16) : ''}">
+                   id="import-date-end" value="${formatDateTimeInput(filter.importDateEnd)}">
           </div>
         </div>
+      </div>
 
+      <div class="filter-row">
         <div class="filter-group">
-          <span class="filter-label">导出日期:</span>
+          <span class="filter-label">导出时间:</span>
+          <div class="filter-buttons">
+            <button class="filter-btn ${filter.enableExportDateFilter ? 'active' : ''}"
+                    data-filter-type="exportDateEnabled"
+                    data-filter-value="toggle">
+              ${filter.enableExportDateFilter ? '已启用' : '未启用'}
+            </button>
+          </div>
           <div class="filter-range">
             <input type="datetime-local" placeholder="开始时间" class="filter-input filter-datetime-input"
-                   id="export-date-start" value="${filter.exportDateStart ? new Date(filter.exportDateStart).toISOString().slice(0, 16) : ''}">
+                   id="export-date-start" value="${formatDateTimeInput(filter.exportDateStart)}">
             <span class="filter-separator">-</span>
             <input type="datetime-local" placeholder="结束时间" class="filter-input filter-datetime-input"
-                   id="export-date-end" value="${filter.exportDateEnd ? new Date(filter.exportDateEnd).toISOString().slice(0, 16) : ''}">
+                   id="export-date-end" value="${formatDateTimeInput(filter.exportDateEnd)}">
           </div>
         </div>
       </div>
