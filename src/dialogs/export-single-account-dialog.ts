@@ -2,6 +2,7 @@
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
 import { buildSingleAccountFilename, convertAccountToSimplifiedFormat } from '../utils/account-utils'
+import { accountStore } from '../store'
 
 /**
  * 显示单个账号导出对话框
@@ -21,6 +22,16 @@ export function showExportSingleAccountDialog(account: Account, index: number = 
             <span class="export-checkbox-label">
               <div class="export-option-title">包含凭证信息</div>
               <div class="export-option-desc">包含 Token 等敏感数据，可用于完整导入</div>
+            </span>
+          </label>
+        </div>
+
+        <div class="export-option">
+          <label class="export-checkbox">
+            <input type="checkbox" id="mark-as-sold-single">
+            <span class="export-checkbox-label">
+              <div class="export-option-title">导出后标记为已卖出</div>
+              <div class="export-option-desc">导出成功后，将账号添加"已卖出"标签</div>
             </span>
           </label>
         </div>
@@ -57,6 +68,7 @@ export function showExportSingleAccountDialog(account: Account, index: number = 
   ;(window as any).submitExportSingle = async () => {
     try {
       const includeCredentials = (document.getElementById('include-credentials-single') as HTMLInputElement)?.checked ?? true
+      const markAsSold = (document.getElementById('mark-as-sold-single') as HTMLInputElement)?.checked ?? false
 
       // 生成简化格式的导出数据
       let exportData = convertAccountToSimplifiedFormat(account)
@@ -96,7 +108,22 @@ export function showExportSingleAccountDialog(account: Account, index: number = 
         await (window as any).__TAURI__.fs.writeTextFile(filePath, content)
         console.log('[单账号导出] 文件写入成功')
 
-        window.UI?.toast.success(`账号已导出到: ${filePath}`)
+        // 如果选择了标记为已卖出
+        if (markAsSold) {
+          console.log('[单账号导出] 标记账号为已卖出...')
+          if (!account.tags.includes('sold')) {
+            accountStore.updateAccount(account.id, {
+              tags: [...account.tags, 'sold']
+            })
+          }
+          console.log('[单账号导出] 已标记为已卖出')
+        }
+
+        const message = markAsSold
+          ? `账号已导出到: ${filePath}，并标记为已卖出`
+          : `账号已导出到: ${filePath}`
+        window.UI?.toast.success(message)
+
         try {
           await revealItemInDir(filePath)
         } catch (openError) {

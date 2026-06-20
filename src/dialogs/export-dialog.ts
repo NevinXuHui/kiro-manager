@@ -2,6 +2,7 @@
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
 import { buildExportFilename, buildSingleAccountFilename, convertAccountToSimplifiedFormat, generateExportContent } from '../utils/account-utils'
+import { accountStore } from '../store'
 
 /**
  * 显示导出对话框
@@ -10,11 +11,13 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
   let selectedFormat: 'json' | 'txt' | 'csv' | 'clipboard' = 'json'
   let includeCredentials = true
   let exportAsMultipleFiles = true // 默认导出为多个文件
+  let markAsSold = false // 是否标记为已卖出
 
   const updatePreview = () => {
     const formatDesc = document.getElementById('format-desc')
     const credentialsOption = document.getElementById('credentials-option')
     const multipleFilesOption = document.getElementById('multiple-files-option')
+    const markAsSoldOption = document.getElementById('mark-as-sold-option')
 
     const descriptions = {
       json: exportAsMultipleFiles ? '每个账号导出为独立 JSON 文件' : '完整数据，可用于导入',
@@ -29,6 +32,9 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
     }
     if (multipleFilesOption) {
       multipleFilesOption.style.display = selectedFormat === 'json' ? 'flex' : 'none'
+    }
+    if (markAsSoldOption) {
+      markAsSoldOption.style.display = selectedFormat === 'json' ? 'flex' : 'none'
     }
   }
 
@@ -78,6 +84,16 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
             </span>
           </label>
         </div>
+
+        <div class="export-option" id="mark-as-sold-option">
+          <label class="export-checkbox">
+            <input type="checkbox" id="mark-as-sold">
+            <span class="export-checkbox-label">
+              <div class="export-option-title">导出后标记为已卖出</div>
+              <div class="export-option-desc">导出成功后，将账号添加"已卖出"标签</div>
+            </span>
+          </label>
+        </div>
       </div>
     `,
     footer: `
@@ -121,6 +137,14 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
     multipleFilesCheckbox.addEventListener('change', () => {
       exportAsMultipleFiles = multipleFilesCheckbox.checked
       updatePreview()
+    })
+  }
+
+  // 标记为已卖出选项
+  const markAsSoldCheckbox = document.getElementById('mark-as-sold') as HTMLInputElement
+  if (markAsSoldCheckbox) {
+    markAsSoldCheckbox.addEventListener('change', () => {
+      markAsSold = markAsSoldCheckbox.checked
     })
   }
 
@@ -196,10 +220,26 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
 
         console.log(`[批量导出] 完成，成功: ${successCount}, 失败: ${errorCount}`)
 
+        // 如果选择了标记为已卖出，且导出成功
+        if (markAsSold && successCount > 0) {
+          console.log('[批量导出] 开始标记账号为已卖出...')
+          accounts.forEach(account => {
+            if (!account.tags.includes('sold')) {
+              accountStore.updateAccount(account.id, {
+                tags: [...account.tags, 'sold']
+              })
+            }
+          })
+          console.log(`[批量导出] 已将 ${accounts.length} 个账号标记为已卖出`)
+        }
+
         if (errorCount > 0) {
           window.UI?.toast.warning(`已导出 ${successCount} 个账号，${errorCount} 个失败`)
         } else {
-          window.UI?.toast.success(`已成功导出 ${successCount} 个账号到: ${dirPath}`)
+          const message = markAsSold
+            ? `已成功导出 ${successCount} 个账号到: ${dirPath}，并标记为已卖出`
+            : `已成功导出 ${successCount} 个账号到: ${dirPath}`
+          window.UI?.toast.success(message)
         }
 
         try {
@@ -241,7 +281,24 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
         await (window as any).__TAURI__.fs.writeTextFile(filePath, content)
         console.log('[导出] 文件写入成功')
 
-        window.UI?.toast.success(`已导出 ${accounts.length} 个账号到: ${filePath}`)
+        // 如果选择了标记为已卖出
+        if (markAsSold && selectedFormat === 'json') {
+          console.log('[导出] 开始标记账号为已卖出...')
+          accounts.forEach(account => {
+            if (!account.tags.includes('sold')) {
+              accountStore.updateAccount(account.id, {
+                tags: [...account.tags, 'sold']
+              })
+            }
+          })
+          console.log(`[导出] 已将 ${accounts.length} 个账号标记为已卖出`)
+        }
+
+        const message = markAsSold && selectedFormat === 'json'
+          ? `已导出 ${accounts.length} 个账号到: ${filePath}，并标记为已卖出`
+          : `已导出 ${accounts.length} 个账号到: ${filePath}`
+        window.UI?.toast.success(message)
+
         try {
           await revealItemInDir(filePath)
         } catch (openError) {
