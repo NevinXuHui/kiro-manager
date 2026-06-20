@@ -197,15 +197,7 @@ export function attachAccountsEvents(
   const quickSelectCustomBtn = container.querySelector('#quick-select-custom')
   if (quickSelectCustomBtn) {
     quickSelectCustomBtn.addEventListener('click', () => {
-      const input = prompt('请输入要选择的账号数量：')
-      if (input) {
-        const count = parseInt(input, 10)
-        if (isNaN(count) || count <= 0) {
-          window.UI?.toast.error('请输入有效的数量')
-          return
-        }
-        quickSelectUnusedAccounts(count, selectedIds, onUpdateSelectionUI)
-      }
+      showCustomSelectDialog(selectedIds, onUpdateSelectionUI)
     })
   }
 
@@ -301,6 +293,69 @@ function toggleFilter(type: string, value: string) {
       })
     }
   }
+}
+
+/**
+ * 显示自定义选择对话框
+ */
+function showCustomSelectDialog(
+  selectedIds: Set<string>,
+  onUpdateSelectionUI: () => void
+) {
+  const modal = window.UI?.modal.open({
+    title: '自定义选择数量',
+    html: `
+      <div class="modal-form">
+        <div class="form-section">
+          <label class="form-label">请输入要选择的账号数量</label>
+          <input type="number" class="form-input" id="custom-select-count" placeholder="例如：50" min="1" step="1" autofocus>
+          <p class="form-hint">将从当前筛选结果中选择指定数量的未使用账号（用量为0）</p>
+        </div>
+      </div>
+    `,
+    footer: `
+      <button class="ui-btn ui-btn-secondary" id="custom-select-cancel">取消</button>
+      <button class="ui-btn ui-btn-primary" id="custom-select-confirm">确定</button>
+    `,
+    size: 'default',
+    closable: true
+  })
+
+  const input = document.getElementById('custom-select-count') as HTMLInputElement
+  const cancelBtn = document.getElementById('custom-select-cancel')
+  const confirmBtn = document.getElementById('custom-select-confirm')
+
+  // 自动聚焦输入框
+  setTimeout(() => input?.focus(), 100)
+
+  // 支持回车确认
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      confirmBtn?.click()
+    }
+  })
+
+  cancelBtn?.addEventListener('click', () => {
+    window.UI?.modal.close(modal)
+  })
+
+  confirmBtn?.addEventListener('click', () => {
+    const value = input?.value
+    if (!value) {
+      window.UI?.toast.error('请输入数量')
+      return
+    }
+
+    const count = parseInt(value, 10)
+    if (isNaN(count) || count <= 0) {
+      window.UI?.toast.error('请输入有效的数量（大于0的整数）')
+      return
+    }
+
+    quickSelectUnusedAccounts(count, selectedIds, onUpdateSelectionUI)
+    window.UI?.modal.close(modal)
+  })
 }
 
 /**
