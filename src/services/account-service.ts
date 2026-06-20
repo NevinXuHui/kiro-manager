@@ -3,6 +3,7 @@ import { accountStore } from '../store'
 import { showAccountDetailDialog } from '../dialogs/detail-dialog'
 // import { showEditAccountDialog } from '../dialogs/edit-account-dialog'
 import { showModelsDialog } from '../dialogs/models-dialog'
+import { showExportSingleAccountDialog } from '../dialogs/export-single-account-dialog'
 import { refreshAccount, deleteAccount, switchToAccount, enableOveragesForAccount } from '../actions/account-actions'
 
 function formatErrorMessage(error: unknown): string {
@@ -251,6 +252,13 @@ export async function handleAccountAction(
       case 'refresh-token':
         await refreshAccount(account, false)
         break
+      case 'export-single': {
+        // 计算当前账号在所有账号中的序号
+        const allAccounts = accountStore.getAccounts()
+        const index = allAccounts.findIndex(a => a.id === accountId) + 1
+        showExportSingleAccountDialog(account, index)
+        break
+      }
       case 'delete':
         deleteAccount(accountId, (id) => selectedIds.delete(id))
         break

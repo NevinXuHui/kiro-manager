@@ -69,6 +69,29 @@ export function buildExportFilename(accountCount: number, format: 'json' | 'txt'
 }
 
 /**
+ * 生成单个账号导出的文件名
+ * 格式：日期_时间_序号_邮箱.json
+ * 例如：20260618_131736_135_JaredBrown8180_at_outlook_com.json
+ */
+export function buildSingleAccountFilename(email: string, index: number, date = new Date()): string {
+  // 格式化日期和时间
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+
+  const dateStr = `${year}${month}${day}`
+  const timeStr = `${hours}${minutes}${seconds}`
+
+  // 处理邮箱：将 @ 替换为 _at_，. 替换为 _
+  const emailPart = email.replace(/@/g, '_at_').replace(/\./g, '_')
+
+  return `${dateStr}_${timeStr}_${index}_${emailPart}.json`
+}
+
+/**
  * 生成导出内容
  */
 export function generateExportContent(

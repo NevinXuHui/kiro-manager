@@ -1,7 +1,7 @@
 // 导出对话框
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Account } from '../types'
-import { buildExportFilename, generateExportContent } from '../utils/account-utils'
+import { buildExportFilename, buildSingleAccountFilename, generateExportContent } from '../utils/account-utils'
 
 /**
  * 显示导出对话框
@@ -9,13 +9,15 @@ import { buildExportFilename, generateExportContent } from '../utils/account-uti
 export function showExportDialog(accounts: Account[], selectedCount: number): void {
   let selectedFormat: 'json' | 'txt' | 'csv' | 'clipboard' = 'json'
   let includeCredentials = true
+  let exportAsMultipleFiles = true // 默认导出为多个文件
 
   const updatePreview = () => {
     const formatDesc = document.getElementById('format-desc')
     const credentialsOption = document.getElementById('credentials-option')
+    const multipleFilesOption = document.getElementById('multiple-files-option')
 
     const descriptions = {
-      json: '完整数据，可用于导入',
+      json: exportAsMultipleFiles ? '每个账号导出为独立 JSON 文件' : '完整数据，可用于导入',
       txt: includeCredentials ? '可导入格式：邮箱,Token,昵称,登录方式' : '纯文本格式，每行一个账号',
       csv: includeCredentials ? '可导入格式，Excel 兼容' : 'Excel 兼容格式',
       clipboard: includeCredentials ? '可导入格式：邮箱,Token' : '复制到剪贴板'
@@ -24,6 +26,9 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
     if (formatDesc) formatDesc.textContent = descriptions[selectedFormat]
     if (credentialsOption) {
       credentialsOption.style.display = selectedFormat === 'json' ? 'flex' : 'none'
+    }
+    if (multipleFilesOption) {
+      multipleFilesOption.style.display = selectedFormat === 'json' ? 'flex' : 'none'
     }
   }
 
@@ -60,6 +65,16 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
             <span class="export-checkbox-label">
               <div class="export-option-title">包含凭证信息</div>
               <div class="export-option-desc">包含 Token 等敏感数据，可用于完整导入</div>
+            </span>
+          </label>
+        </div>
+
+        <div class="export-option" id="multiple-files-option">
+          <label class="export-checkbox">
+            <input type="checkbox" id="export-multiple-files" checked>
+            <span class="export-checkbox-label">
+              <div class="export-option-title">每个账号导出为独立文件</div>
+              <div class="export-option-desc">文件名格式：日期_时间_序号_邮箱.json</div>
             </span>
           </label>
         </div>
@@ -100,6 +115,15 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
     })
   }
 
+  // 多文件导出选项
+  const multipleFilesCheckbox = document.getElementById('export-multiple-files') as HTMLInputElement
+  if (multipleFilesCheckbox) {
+    multipleFilesCheckbox.addEventListener('change', () => {
+      exportAsMultipleFiles = multipleFilesCheckbox.checked
+      updatePreview()
+    })
+  }
+
   window.closeExportDialog = () => {
     window.UI?.modal.close(modal)
     delete window.closeExportDialog
@@ -108,10 +132,8 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
 
   window.submitExport = async () => {
     try {
-      const content = generateExportContent(accounts, selectedFormat, includeCredentials)
-      console.log('[导出] 生成内容成功，长度:', content.length)
-
       if (selectedFormat === 'clipboard') {
+        const content = generateExportContent(accounts, selectedFormat, includeCredentials)
         await navigator.clipboard.writeText(content)
         window.UI?.toast.success('已复制到剪贴板')
         window.UI?.modal.close(modal)
@@ -119,6 +141,88 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
         delete window.submitExport
         return
       }
+
+      // 如果是 JSON 格式且选择了多文件导出
+      if (selectedFormat === 'json' && exportAsMultipleFiles) {
+        console.log('[批量导出] 开始批量导出为多个文件...')
+
+        // 让用户选择导出目录
+        const dirPath = await (window as any).__TAURI__.dialog.open({
+          title: '选择导出目录',
+          directory: true,
+          multiple: false
+        })
+
+        console.log('[批量导出] 选择的目录:', dirPath)
+
+        if (!dirPath) {
+          console.log('[批量导出] 用户取消了目录选择')
+          return
+        }
+
+        // 批量导出每个账号为独立文件
+        const exportDate = new Date()
+        let successCount = 0
+        let errorCount = 0
+
+        for (let i = 0; i < accounts.length; i++) {
+          try {
+            const account = accounts[i]
+            const filename = buildSingleAccountFilename(account.email, i + 1, exportDate)
+            const filePath = `${dirPath}/${filename}`
+
+            // 生成单个账号的导出数据
+            const exportData = {
+              version: '1.0',
+              exportedAt: exportDate.toISOString(),
+              accounts: [
+                includeCredentials
+                  ? account
+                  : {
+                      ...account,
+                      credentials: {
+                        ...account.credentials,
+                        accessToken: '',
+                        refreshToken: '',
+                        csrfToken: ''
+                      }
+                    }
+              ]
+            }
+
+            const content = JSON.stringify(exportData, null, 2)
+            await (window as any).__TAURI__.fs.writeTextFile(filePath, content)
+            successCount++
+            console.log(`[批量导出] 成功导出 ${i + 1}/${accounts.length}: ${filename}`)
+          } catch (error) {
+            errorCount++
+            console.error(`[批量导出] 导出第 ${i + 1} 个账号失败:`, error)
+          }
+        }
+
+        console.log(`[批量导出] 完成，成功: ${successCount}, 失败: ${errorCount}`)
+
+        if (errorCount > 0) {
+          window.UI?.toast.warning(`已导出 ${successCount} 个账号，${errorCount} 个失败`)
+        } else {
+          window.UI?.toast.success(`已成功导出 ${successCount} 个账号到: ${dirPath}`)
+        }
+
+        try {
+          await revealItemInDir(dirPath)
+        } catch (openError) {
+          console.warn('[批量导出] 打开导出目录失败:', openError)
+        }
+
+        window.UI?.modal.close(modal)
+        delete window.closeExportDialog
+        delete window.submitExport
+        return
+      }
+
+      // 单文件导出（原有逻辑）
+      const content = generateExportContent(accounts, selectedFormat, includeCredentials)
+      console.log('[导出] 生成内容成功，长度:', content.length)
 
       const extensions: Record<'json' | 'txt' | 'csv', 'json' | 'txt' | 'csv'> = { json: 'json', txt: 'txt', csv: 'csv' }
       const ext = extensions[selectedFormat]
@@ -142,7 +246,7 @@ export function showExportDialog(accounts: Account[], selectedCount: number): vo
         console.log('[导出] 开始写入文件...')
         await (window as any).__TAURI__.fs.writeTextFile(filePath, content)
         console.log('[导出] 文件写入成功')
-        
+
         window.UI?.toast.success(`已导出 ${accounts.length} 个账号到: ${filePath}`)
         try {
           await revealItemInDir(filePath)

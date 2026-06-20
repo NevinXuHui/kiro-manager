@@ -229,6 +229,13 @@ export function renderAccountCard(account: Account, isSelected: boolean): string
             <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         </button>
+        <button class="btn-icon" title="导出账号" data-action="export-single">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
         <button class="btn-icon delete" title="删除" data-action="delete">
           <svg viewBox="0 0 24 24" width="16" height="16">
             <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2"></polyline>
@@ -353,6 +360,13 @@ export function renderAccountListItem(account: Account, isSelected: boolean): st
         <button class="btn-icon" title="刷新Token" data-action="refresh-token">
           <svg viewBox="0 0 24 24" width="16" height="16">
             <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <button class="btn-icon" title="导出账号" data-action="export-single">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
         </button>
         <button class="btn-icon delete" title="删除" data-action="delete">
