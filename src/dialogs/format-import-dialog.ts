@@ -535,17 +535,15 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   importBtn.disabled = true
   importText!.textContent = '检查重复...'
 
-  // 🔍 检查重复账号
+  // 🔍 检查重复账号（仅根据邮箱去重）
   const existingAccounts = accountStore.getAccounts()
   const duplicates: { index: number; email: string; refreshToken: string }[] = []
   const uniqueAccounts: typeof accounts = []
 
   accounts.forEach((account, index) => {
-    // 检查是否存在相同的 refreshToken 或 email
-    const isDuplicate = existingAccounts.some(existing => {
-      const sameRefreshToken = account.refreshToken && existing.credentials.refreshToken === account.refreshToken
-      const sameEmail = account.email && existing.email === account.email
-      return sameRefreshToken || sameEmail
+    // 仅检查邮箱是否重复
+    const isDuplicate = account.email && existingAccounts.some(existing => {
+      return existing.email.toLowerCase() === account.email.toLowerCase()
     })
 
     if (isDuplicate) {
@@ -558,7 +556,7 @@ async function doFormatImport(accounts: ParsedAccount[], modal: any) {
   // 如果有重复，提示用户
   if (duplicates.length > 0) {
     const confirmImport = confirm(
-      `检测到 ${duplicates.length} 个重复账号（已存在相同的邮箱或 refreshToken）。\n\n` +
+      `检测到 ${duplicates.length} 个重复账号（已存在相同的邮箱）。\n\n` +
       `- 重复账号: ${duplicates.length} 个（将跳过）\n` +
       `- 新账号: ${uniqueAccounts.length} 个（将导入）\n\n` +
       `是否继续导入新账号？`
