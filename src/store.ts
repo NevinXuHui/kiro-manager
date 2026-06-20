@@ -35,18 +35,21 @@ class AccountStore {
 
   async loadAccounts() {
     try {
+      console.log('[Store] 开始从 SQLite 加载账号数据...')
       // 从 Tauri 后端加载
       const data = await (window as any).__TAURI__.core.invoke('load_accounts')
       if (data) {
         this.accounts = JSON.parse(data)
+        console.log(`[Store] 成功从 SQLite 加载 ${this.accounts.length} 个账号`)
         this.notify()
       }
     } catch (error) {
-      console.error('[Store] 加载账号失败:', error)
+      console.error('[Store] 从 SQLite 加载账号失败:', error)
       // 降级到 localStorage
       const saved = localStorage.getItem('accounts')
       if (saved) {
         this.accounts = JSON.parse(saved)
+        console.log(`[Store] 从 localStorage 降级加载 ${this.accounts.length} 个账号`)
         this.notify()
       }
     }
@@ -171,6 +174,29 @@ class AccountStore {
     this.saveAccounts()
     this.notify()
     return newAccount.id
+  }
+
+  async batchAddAccounts(accounts: Omit<Account, 'id' | 'createdAt' | 'isActive'>[]) {
+    if (accounts.length === 0) return []
+
+    const ids: string[] = []
+    const now = Date.now()
+    const newAccounts: Account[] = accounts.map(account => {
+      const id = crypto.randomUUID()
+      ids.push(id)
+      return {
+        ...account,
+        id,
+        createdAt: now,
+        isActive: false
+      }
+    })
+
+    this.accounts.push(...newAccounts)
+    await this.saveAccounts()
+    this.notify()
+
+    return ids
   }
 
   updateAccount(id: string, updates: Partial<Account>) {

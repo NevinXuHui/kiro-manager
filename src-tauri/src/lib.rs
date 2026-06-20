@@ -9,6 +9,7 @@ mod kiro_settings;
 mod proxy;
 mod chat;
 mod app_update;
+mod export;
 
 use tauri::{Manager, PhysicalPosition};
 
@@ -99,7 +100,9 @@ pub fn run() {
             proxy::commands::reset_proxy_stats,
             chat::send_chat_message,
             app_update::check_for_updates,
-            app_update::download_update_asset
+            app_update::download_update_asset,
+            export::create_zip_archive,
+            export::cleanup_temp_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

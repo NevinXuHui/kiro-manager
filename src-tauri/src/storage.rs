@@ -1,7 +1,12 @@
 // 本地存储管理模块
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 // 获取工程 data 目录路径
 fn get_data_dir() -> Result<PathBuf, String> {
@@ -25,17 +30,205 @@ fn get_legacy_data_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home_dir).join("kiro manager"))
 }
 
-// 首次切换到工程 data 目录时，把旧目录里的账号数据复制过来，避免看起来像数据丢失
-fn migrate_legacy_accounts_if_needed(data_dir: &PathBuf) -> Result<(), String> {
-    let accounts_file = data_dir.join("accounts.json");
-    if accounts_file.exists() {
+fn get_accounts_db_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join("accounts.sqlite")
+}
+
+fn current_timestamp_millis() -> Result<i64, String> {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| format!("生成时间戳失败: {}", e))?
+        .as_millis();
+
+    Ok(millis as i64)
+}
+
+fn open_accounts_db(data_dir: &PathBuf) -> Result<Connection, String> {
+    let db_path = get_accounts_db_path(data_dir);
+    let conn = Connection::open(db_path).map_err(|e| format!("打开账号数据库失败: {}", e))?;
+
+    conn.execute_batch(
+        r#"
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+
+        CREATE TABLE IF NOT EXISTS accounts (
+            id TEXT PRIMARY KEY NOT NULL,
+            data TEXT NOT NULL,
+            sort_order INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_accounts_sort_order ON accounts(sort_order);
+
+        CREATE TABLE IF NOT EXISTS storage_meta (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        );
+        "#,
+    )
+    .map_err(|e| format!("初始化账号数据库失败: {}", e))?;
+
+    Ok(conn)
+}
+
+fn normalize_accounts_value(value: Value) -> Result<Vec<Value>, String> {
+    match value {
+        Value::Array(accounts) => Ok(accounts),
+        Value::Object(mut object) => match object.remove("accounts") {
+            Some(Value::Array(accounts)) => Ok(accounts),
+            _ => Err("账号数据必须是数组或包含 accounts 数组".to_string()),
+        },
+        _ => Err("账号数据必须是数组".to_string()),
+    }
+}
+
+fn parse_accounts_json_strict(data: &str) -> Result<Vec<Value>, String> {
+    let value = serde_json::from_str::<Value>(data)
+        .map_err(|e| format!("解析账号 JSON 失败: {}", e))?;
+
+    normalize_accounts_value(value)
+}
+
+fn parse_accounts_json_for_migration(data: &str) -> Result<Vec<Value>, String> {
+    match parse_accounts_json_strict(data) {
+        Ok(accounts) => Ok(accounts),
+        Err(strict_error) => {
+            let mut deserializer = serde_json::Deserializer::from_str(data);
+            let value = Value::deserialize(&mut deserializer)
+                .map_err(|_| strict_error)?;
+
+            normalize_accounts_value(value)
+        }
+    }
+}
+
+fn account_id_for_storage(account: &mut Value, index: usize, seen_ids: &mut HashSet<String>) -> String {
+    let existing_id = account
+        .get("id")
+        .and_then(|id| id.as_str())
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(ToString::to_string);
+
+    let mut id = existing_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    if seen_ids.contains(&id) {
+        id = Uuid::new_v4().to_string();
+    }
+    seen_ids.insert(id.clone());
+
+    if let Value::Object(object) = account {
+        object.insert("id".to_string(), Value::String(id.clone()));
+    }
+
+    if id.is_empty() {
+        format!("account-{}", index + 1)
+    } else {
+        id
+    }
+}
+
+fn save_accounts_to_db(conn: &mut Connection, accounts: Vec<Value>) -> Result<(), String> {
+    let updated_at = current_timestamp_millis()?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("创建账号保存事务失败: {}", e))?;
+
+    tx.execute("DELETE FROM accounts", [])
+        .map_err(|e| format!("清空旧账号数据失败: {}", e))?;
+
+    let mut seen_ids = HashSet::new();
+    {
+        let mut stmt = tx
+            .prepare(
+                "INSERT INTO accounts (id, data, sort_order, updated_at) VALUES (?1, ?2, ?3, ?4)",
+            )
+            .map_err(|e| format!("准备账号写入语句失败: {}", e))?;
+
+        for (index, account) in accounts.into_iter().enumerate() {
+            let mut account = account;
+            let id = account_id_for_storage(&mut account, index, &mut seen_ids);
+            let data = serde_json::to_string(&account)
+                .map_err(|e| format!("序列化账号数据失败: {}", e))?;
+
+            stmt.execute(params![id, data, index as i64, updated_at])
+                .map_err(|e| format!("写入账号数据失败: {}", e))?;
+        }
+    }
+
+    tx.execute(
+        "INSERT INTO storage_meta (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params!["storage_version", "sqlite-v1"],
+    )
+    .map_err(|e| format!("写入存储版本失败: {}", e))?;
+
+    tx.commit()
+        .map_err(|e| format!("提交账号保存事务失败: {}", e))?;
+
+    Ok(())
+}
+
+fn load_accounts_from_db(conn: &Connection) -> Result<String, String> {
+    let mut stmt = conn
+        .prepare("SELECT data FROM accounts ORDER BY sort_order ASC, rowid ASC")
+        .map_err(|e| format!("准备读取账号语句失败: {}", e))?;
+
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("读取账号数据失败: {}", e))?;
+
+    let mut accounts = Vec::new();
+    for row in rows {
+        let data = row.map_err(|e| format!("读取账号行失败: {}", e))?;
+        let account = serde_json::from_str::<Value>(&data)
+            .map_err(|e| format!("数据库账号 JSON 损坏: {}", e))?;
+        accounts.push(account);
+    }
+
+    serde_json::to_string(&accounts).map_err(|e| format!("序列化账号列表失败: {}", e))
+}
+
+fn accounts_count(conn: &Connection) -> Result<i64, String> {
+    conn.query_row("SELECT COUNT(*) FROM accounts", [], |row| row.get(0))
+        .map_err(|e| format!("统计账号数量失败: {}", e))
+}
+
+// 首次切换到 SQLite 时，从旧 JSON 文件导入已有账号数据，避免看起来像数据丢失
+fn migrate_legacy_accounts_if_needed(data_dir: &PathBuf, conn: &mut Connection) -> Result<(), String> {
+    if accounts_count(conn)? > 0 {
         return Ok(());
     }
 
-    let legacy_accounts_file = get_legacy_data_dir()?.join("accounts.json");
-    if legacy_accounts_file.exists() {
-        fs::copy(&legacy_accounts_file, &accounts_file)
-            .map_err(|e| format!("迁移账号数据失败: {}", e))?;
+    let mut candidates = vec![
+        data_dir.join("accounts.json"),
+        data_dir.join("accounts.repaired.json"),
+        data_dir.join("accounts.backup.json"),
+    ];
+    candidates.push(get_legacy_data_dir()?.join("accounts.json"));
+
+    for accounts_file in candidates {
+        if !accounts_file.exists() {
+            continue;
+        }
+
+        let data = fs::read_to_string(&accounts_file)
+            .map_err(|e| format!("读取旧账号数据失败: {}", e))?;
+        match parse_accounts_json_for_migration(&data) {
+            Ok(accounts) => {
+                save_accounts_to_db(conn, accounts)?;
+                conn.execute(
+                    "INSERT INTO storage_meta (key, value) VALUES (?1, ?2)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    params!["migrated_from", accounts_file.to_string_lossy().to_string()],
+                )
+                .map_err(|e| format!("记录账号迁移来源失败: {}", e))?;
+                return Ok(());
+            }
+            Err(error) => {
+                eprintln!("[存储] 跳过无法迁移的账号文件 {:?}: {}", accounts_file, error);
+            }
+        }
     }
 
     Ok(())
@@ -85,30 +278,35 @@ pub async fn delete_custom_logo() -> Result<(), String> {
 // 加载账号数据
 #[tauri::command]
 pub async fn load_accounts() -> Result<String, String> {
+    println!("[存储] 开始加载账号数据");
     let data_dir = get_data_dir()?;
-    migrate_legacy_accounts_if_needed(&data_dir)?;
+    println!("[存储] 数据目录: {:?}", data_dir);
 
-    let accounts_file = data_dir.join("accounts.json");
+    let mut conn = open_accounts_db(&data_dir)?;
+    println!("[存储] SQLite 数据库连接成功");
 
-    if !accounts_file.exists() {
-        return Ok("[]".to_string());
-    }
-    
-    let data = fs::read_to_string(accounts_file)
-        .map_err(|e| format!("读取账号数据失败: {}", e))?;
-    
-    Ok(data)
+    migrate_legacy_accounts_if_needed(&data_dir, &mut conn)?;
+
+    let result = load_accounts_from_db(&conn)?;
+    let count = accounts_count(&conn)?;
+    println!("[存储] 成功从 SQLite 加载 {} 个账号", count);
+
+    Ok(result)
 }
 
 // 保存账号数据
 #[tauri::command]
 pub async fn save_accounts(data: String) -> Result<(), String> {
+    // 先严格验证 JSON，避免把无效内容写入数据库
+    let accounts = parse_accounts_json_strict(&data)?;
+    println!("[存储] 开始保存 {} 个账号到 SQLite", accounts.len());
+
     let data_dir = get_data_dir()?;
-    let accounts_file = data_dir.join("accounts.json");
-    
-    fs::write(accounts_file, data)
-        .map_err(|e| format!("保存账号数据失败: {}", e))?;
-    
+    let mut conn = open_accounts_db(&data_dir)?;
+
+    save_accounts_to_db(&mut conn, accounts)?;
+    println!("[存储] 账号数据已成功保存到 SQLite");
+
     Ok(())
 }
 
