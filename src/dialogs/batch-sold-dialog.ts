@@ -83,11 +83,12 @@ export function showBatchSoldDialog(accountIds: Set<string>): void {
     const action = (document.querySelector('input[name="sold-action"]:checked') as HTMLInputElement)?.value
     const soldNote = (document.getElementById('batch-sold-note') as HTMLTextAreaElement)?.value.trim()
     const isMark = action === 'mark'
-    let updatedCount = 0
 
-    accountIds.forEach(accountId => {
-      const account = accountStore.getAccounts().find(a => a.id === accountId)
-      if (account) {
+    const batchUpdates = Array.from(accountIds)
+      .map(accountId => {
+        const account = accountStore.getAccounts().find(a => a.id === accountId)
+        if (!account) return null
+
         const currentTags = account.tags || []
         let newTags: string[]
         const updates: any = {}
@@ -110,14 +111,16 @@ export function showBatchSoldDialog(accountIds: Set<string>): void {
         }
 
         updates.tags = newTags
-        accountStore.updateAccount(accountId, updates)
-        updatedCount++
-      }
-    })
+        return { id: accountId, updates }
+      })
+      .filter(Boolean) as Array<{ id: string; updates: any }>
+
+    // 使用批量更新，只保存一次
+    accountStore.batchUpdateAccounts(batchUpdates)
 
     const message = isMark
-      ? `已为 ${updatedCount} 个账号添加"已卖出"标签`
-      : `已移除 ${updatedCount} 个账号的"已卖出"标签`
+      ? `已为 ${batchUpdates.length} 个账号添加"已卖出"标签`
+      : `已移除 ${batchUpdates.length} 个账号的"已卖出"标签`
 
     window.UI?.toast.success(message)
     window.UI?.modal.close(modal)

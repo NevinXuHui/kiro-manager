@@ -143,18 +143,21 @@ export function showBatchNotesDialog(accountIds: Set<string>): void {
     })
 
     // 批量更新账号
-    let updatedCount = 0
-    accountIds.forEach(accountId => {
-      const account = accountStore.getAccounts().find(a => a.id === accountId)
-      if (account) {
-        accountStore.updateAccount(accountId, {
-          tags: selectedNotes
-        })
-        updatedCount++
-      }
-    })
+    const batchUpdates = Array.from(accountIds)
+      .map(accountId => {
+        const account = accountStore.getAccounts().find(a => a.id === accountId)
+        if (!account) return null
+        return {
+          id: accountId,
+          updates: { tags: selectedNotes }
+        }
+      })
+      .filter(Boolean) as Array<{ id: string; updates: any }>
 
-    window.UI?.toast.success(`已为 ${updatedCount} 个账号更新备注`)
+    // 使用批量更新，只保存一次
+    accountStore.batchUpdateAccounts(batchUpdates)
+
+    window.UI?.toast.success(`已为 ${batchUpdates.length} 个账号更新备注`)
     window.UI?.modal.close(modal)
     delete window.closeBatchNotesModal
     delete window.submitBatchNotes

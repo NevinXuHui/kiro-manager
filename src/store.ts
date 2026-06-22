@@ -216,6 +216,26 @@ class AccountStore {
     this.notifyAccountDelete(id)
   }
 
+  // 批量更新账号（性能优化：一次性更新，只保存一次）
+  batchUpdateAccounts(updates: Array<{ id: string; updates: Partial<Account> }>) {
+    console.log(`[Store] 批量更新 ${updates.length} 个账号`)
+
+    updates.forEach(({ id, updates: accountUpdates }) => {
+      const index = this.accounts.findIndex(a => a.id === id)
+      if (index !== -1) {
+        this.accounts[index] = { ...this.accounts[index], ...accountUpdates }
+      }
+    })
+
+    // 只保存一次
+    this.saveAccounts()
+
+    // 触发批量更新事件
+    const accountIds = updates.map(u => u.id)
+    const event = new CustomEvent('accounts-batch-updated', { detail: { accountIds } })
+    window.dispatchEvent(event)
+  }
+
   // 批量删除账号（性能优化：一次性删除，只保存一次）
   batchDeleteAccounts(ids: string[]) {
     console.log(`[Store] 批量删除 ${ids.length} 个账号`)
