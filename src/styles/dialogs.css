@@ -418,6 +418,8 @@
 /* 导出对话框样式 */
 .export-dialog {
   padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .export-count {
