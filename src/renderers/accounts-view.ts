@@ -109,6 +109,9 @@ export function renderAccountsView(
   const filteredAccounts = accountStore.getFilteredAccounts()
   const filter = accountStore.getFilter()
   const totalAccounts = filteredAccounts.length
+  const allAccounts = accountStore.getAccounts()
+  const totalAllAccounts = allAccounts.length
+  const isFiltered = totalAccounts !== totalAllAccounts
   const totalPages = Math.max(1, Math.ceil(totalAccounts / pagination.pageSize))
   const currentPage = clampPage(pagination.currentPage, totalPages)
   const pageStart = (currentPage - 1) * pagination.pageSize
@@ -137,6 +140,16 @@ export function renderAccountsView(
                 ` : ''}
               </div>
             </div>
+          </div>
+          <div class="account-count-badge">
+            ${isFiltered ? `
+              <span class="count-filtered">${totalAccounts}</span>
+              <span class="count-separator">/</span>
+              <span class="count-total">${totalAllAccounts}</span>
+            ` : `
+              <span class="count-total">${totalAllAccounts}</span>
+            `}
+            <span class="count-label">个账号</span>
           </div>
           <div class="toolbar-actions">
             <button class="ui-btn ui-btn-secondary ${isFilterExpanded ? 'active' : ''}" id="filter-toggle-btn" title="展开/收起筛选">
