@@ -98,6 +98,10 @@ export class AccountManager {
     this.syncInterval = setInterval(() => {
       accountStore.syncActiveAccountFromLocal()
     }, 5000)
+
+    // 初始化完成后立即渲染一次
+    this.renderContent()
+    this.updateCurrentAccountDisplay()
   }
 
   private updateCurrentAccountDisplay() {
