@@ -78,17 +78,40 @@ class AccountStore {
     }
   }
 
-  async saveAccounts() {
-    try {
-      // 保存到 Tauri 后端
-      await (window as any).__TAURI__.core.invoke('save_accounts', {
-        data: JSON.stringify(this.accounts)
-      })
-    } catch (error) {
-      console.error('[Store] 保存账号失败:', error)
-      // 降级到 localStorage
-      localStorage.setItem('accounts', JSON.stringify(this.accounts))
+  private savePromise: Promise<void> | null = null
+  private pendingSave: boolean = false
+
+  async saveAccounts(): Promise<void> {
+    // 如果已经有保存操作在进行中，等待它完成后标记需要再次保存
+    if (this.savePromise) {
+      this.pendingSave = true
+      await this.savePromise
+
+      // 如果等待期间又有新的保存请求，执行一次新的保存
+      if (this.pendingSave) {
+        this.pendingSave = false
+        return this.saveAccounts()
+      }
+      return
     }
+
+    this.pendingSave = false
+    this.savePromise = (async () => {
+      try {
+        // 保存到 Tauri 后端
+        await (window as any).__TAURI__.core.invoke('save_accounts', {
+          data: JSON.stringify(this.accounts)
+        })
+      } catch (error) {
+        console.error('[Store] 保存账号失败:', error)
+        // 降级到 localStorage
+        localStorage.setItem('accounts', JSON.stringify(this.accounts))
+      } finally {
+        this.savePromise = null
+      }
+    })()
+
+    await this.savePromise
   }
   
   private saveSettings() {

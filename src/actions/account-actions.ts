@@ -258,6 +258,81 @@ export async function refreshAccount(account: Account, silent: boolean = false):
 }
 
 /**
+ * 刷新账号但不保存到数据库（用于批量操作）
+ * 返回需要更新的字段
+ */
+async function refreshAccountWithoutSave(account: Account): Promise<Partial<Account>> {
+  if (!account.credentials.refreshToken) {
+    throw new Error('账号缺少刷新凭证')
+  }
+
+  const result = await (window as any).__TAURI__.core.invoke('verify_account_credentials', {
+    refreshToken: account.credentials.refreshToken,
+    clientId: account.credentials.clientId || '',
+    clientSecret: account.credentials.clientSecret || '',
+    region: account.credentials.region || 'us-east-1'
+  })
+
+  if (result.success && result.data) {
+    console.log('[刷新] profile_arn from backend:', result.data.profile_arn)
+    const now = Date.now()
+    return {
+      userId: result.data.user_id,
+      credentials: {
+        ...account.credentials,
+        accessToken: result.data.access_token,
+        refreshToken: result.data.refresh_token,
+        expiresAt: now + (result.data.expires_in || 3600) * 1000
+      },
+      subscription: {
+        type: result.data.subscription_type,
+        title: result.data.subscription_title,
+        rawType: result.data.raw_type,
+        profileArn: result.data.profile_arn || account.subscription.profileArn,
+        upgradeCapability: result.data.upgrade_capability,
+        overageCapability: result.data.overage_capability,
+        overageStatus: result.data.overage_status || account.subscription.overageStatus,
+        managementTarget: result.data.management_target,
+        daysRemaining: result.data.days_remaining
+      },
+      usage: {
+        current: result.data.usage.current,
+        limit: result.data.usage.limit,
+        percentUsed: result.data.usage.limit > 0 ? result.data.usage.current / result.data.usage.limit : 0,
+        lastUpdated: now,
+        nextResetDate: result.data.usage.nextResetDate,
+        baseLimit: result.data.usage.baseLimit,
+        baseCurrent: result.data.usage.baseCurrent,
+        freeTrialLimit: result.data.usage.freeTrialLimit,
+        freeTrialCurrent: result.data.usage.freeTrialCurrent,
+        freeTrialExpiry: result.data.usage.freeTrialExpiry,
+        resourceDetail: result.data.usage.resourceDetail
+      },
+      status: 'active',
+      lastError: undefined,
+      lastUsedAt: now
+    }
+  } else {
+    // 根据错误类型设置状态
+    const errorMsg = result.error || '刷新失败'
+    const isSuspended = isSuspendedError(errorMsg)
+
+    // 如果账号被封禁，删除机器码绑定
+    if (isSuspended) {
+      try {
+        const { removeAccountBinding } = await import('../handlers/machine-id-storage')
+        removeAccountBinding(account.id)
+        console.log(`[账号刷新] 账号 ${account.email} 已封禁，已删除机器码绑定`)
+      } catch (error) {
+        console.error('[账号刷新] 删除机器码绑定失败:', error)
+      }
+    }
+
+    throw new Error(errorMsg)
+  }
+}
+
+/**
  * 只刷新 Token（不更新账号信息）
  */
 export async function refreshTokenOnly(account: Account): Promise<void> {
@@ -659,6 +734,9 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
     detail: `0/${selectedAccounts.length} 已完成`
   })
 
+  // 收集所有更新，最后批量保存
+  const accountUpdates: Array<{ id: string; updates: Partial<Account> }> = []
+
   // 并发过高时首批请求会同时卡住，进度看起来像无响应；降低并发并给单账号加超时。
   const batchSize = 4
   for (let i = 0; i < selectedAccounts.length; i += batchSize) {
@@ -672,16 +750,21 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
       })
 
       try {
-        await withTimeout(
-          refreshAccount(account, true),
+        // 使用不保存到数据库的版本
+        const updates = await withTimeout(
+          refreshAccountWithoutSave(account),
           45_000,
           `刷新超时: ${account.email || account.nickname || account.id}`
         )
+        accountUpdates.push({ id: account.id, updates })
         successCount++
       } catch (error) {
-        accountStore.updateAccount(account.id, {
-          status: 'error',
-          lastError: formatUnknownError(error)
+        accountUpdates.push({
+          id: account.id,
+          updates: {
+            status: 'error',
+            lastError: formatUnknownError(error)
+          }
         })
         failedCount++
       } finally {
@@ -693,6 +776,12 @@ export async function handleBatchRefresh(selectedIds: Set<string>): Promise<void
         })
       }
     }))
+  }
+
+  // 批量保存所有更新（只保存一次）
+  if (accountUpdates.length > 0) {
+    console.log(`[批量刷新] 批量保存 ${accountUpdates.length} 个账号更新`)
+    accountStore.batchUpdateAccounts(accountUpdates)
   }
 
   if (failedCount === 0) {
